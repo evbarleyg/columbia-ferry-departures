@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Columbia Ferry Tracks — Summer Fridays 2025</title>
+  <title>Columbia AIS — Summer Fridays 2025</title>
 
   <!-- Leaflet -->
   <link
@@ -19,215 +19,265 @@
   ></script>
 
   <style>
-    body { margin: 0; font-family: -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif; }
-    #topbar {
-      padding: 12px 14px;
-      border-bottom: 1px solid #e5e5e5;
-      display: flex;
-      gap: 12px;
-      align-items: center;
-      flex-wrap: wrap;
+    html, body { height: 100%; margin: 0; }
+    #map { height: 100%; width: 100%; }
+    .panel {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      z-index: 1000;
+      background: rgba(255,255,255,0.95);
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      padding: 12px 12px 10px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+      font: 14px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      min-width: 320px;
+      max-width: 420px;
     }
-    #map { height: calc(100vh - 58px); width: 100%; }
-    .label { font-weight: 600; }
-    select, button {
-      padding: 6px 8px;
-      border: 1px solid #ccc;
-      border-radius: 6px;
-      background: #fff;
-      font-size: 14px;
-    }
-    #status { color: #555; font-size: 13px; }
+    .row { display: flex; align-items: center; gap: 10px; margin: 6px 0; flex-wrap: wrap; }
+    .row label { font-weight: 600; }
+    select, input[type="checkbox"] { font-size: 14px; }
+    .meta { font-size: 12px; color: #444; margin-top: 8px; }
+    .meta code { background: #f6f6f6; padding: 2px 4px; border-radius: 5px; }
     .pill {
       display: inline-block;
       padding: 2px 8px;
       border-radius: 999px;
-      background: #f3f3f3;
+      border: 1px solid #ddd;
+      background: #fafafa;
       font-size: 12px;
-      color: #333;
+      margin-left: 6px;
     }
+    .hint { font-size: 12px; color: #555; }
   </style>
 </head>
-<body>
-  <div id="topbar">
-    <span class="label">Friday:</span>
-    <select id="daySelect"></select>
-    <button id="fitBtn">Fit to Track</button>
-    <span id="status" class="pill">Loading…</span>
-  </div>
 
+<body>
   <div id="map"></div>
 
+  <div class="panel">
+    <div class="row">
+      <label for="daySelect">Friday</label>
+      <select id="daySelect"></select>
+      <span id="counts" class="pill"></span>
+    </div>
+
+    <div class="row">
+      <label style="user-select:none;">
+        <input type="checkbox" id="toggleArrivals" />
+        Show arrival (AM) track
+      </label>
+      <span class="hint">(default: departures only)</span>
+    </div>
+
+    <div class="row hint" id="windowInfo"></div>
+
+    <div class="meta" id="meta"></div>
+  </div>
+
   <script>
-    // --- helpers ---
-    function fmtLocal(ts) {
-      // ts is ISO string with offset already (America/Los_Angeles)
-      const d = new Date(ts);
-      const yyyy = d.getFullYear();
-      const mm = String(d.getMonth()+1).padStart(2,'0');
-      const dd = String(d.getDate()).padStart(2,'0');
-      const hh = String(d.getHours()).padStart(2,'0');
-      const mi = String(d.getMinutes()).padStart(2,'0');
-      const ss = String(d.getSeconds()).padStart(2,'0');
-      return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
-    }
+    // IMPORTANT:
+    // Put this JSON file in the SAME folder as index.html (in your GitHub Pages repo),
+    // or update the path below.
+    const DATA_URL = "./columbia_tracks_split_arrival_departure_2025.json";
 
-    function speedColor(knots) {
-      // simple ramp: slow->fast
-      if (knots < 1) return "#666";
-      if (knots < 5) return "#1f77b4";
-      if (knots < 10) return "#2ca02c";
-      if (knots < 15) return "#ff7f0e";
-      return "#d62728";
-    }
-
-    // --- map init ---
-    const map = L.map("map", { preferCanvas: true }).setView([48.72, -122.51], 12);
+    // Map init (Bellingham area)
+    const map = L.map("map", { preferCanvas: true }).setView([48.75, -122.5], 10);
 
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 19,
+      maxZoom: 18,
       attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
-    const statusEl = document.getElementById("status");
-    const daySelect = document.getElementById("daySelect");
-    const fitBtn = document.getElementById("fitBtn");
-
-    let data = null;
-    let trackLayer = L.layerGroup().addTo(map);
-    let boxLayer = L.layerGroup().addTo(map);
+    // Layers
+    let AIS_DATA = null;
+    let arrivalLayer = null;
+    let departureLayer = null;
+    let boxLayer = null;
 
     function clearLayers() {
-      trackLayer.clearLayers();
-      boxLayer.clearLayers();
+      if (arrivalLayer) { arrivalLayer.remove(); arrivalLayer = null; }
+      if (departureLayer) { departureLayer.remove(); departureLayer = null; }
+      // keep the bbox overlay
     }
 
-    function drawBoundingBox(meta) {
-      // Draw the data filter bounding box
-      const bounds = [
-        [meta.lat_min, meta.lon_min],
-        [meta.lat_max, meta.lon_max]
-      ];
-      const rect = L.rectangle(bounds, {
-        color: "#000",
-        weight: 1,
-        fillOpacity: 0.05
+    function fmtLocal(ts) {
+      const d = new Date(ts);
+      return d.toLocaleString(undefined, {
+        year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "2-digit", minute: "2-digit", second: "2-digit"
       });
-      rect.bindTooltip(
-        `Filter box<br>lat: ${meta.lat_min}–${meta.lat_max}<br>lon: ${meta.lon_min}–${meta.lon_max}`,
-        { sticky: true }
-      );
-      rect.addTo(boxLayer);
     }
 
-    function drawDay(dayObj) {
-      clearLayers();
-      drawBoundingBox(data.meta);
+    function makeTooltipHTML(p, label) {
+      return `
+        <div style="min-width:240px;">
+          <div style="font-weight:700; margin-bottom:4px;">${label}</div>
+          <div>${fmtLocal(p.t)}</div>
+          <div>Speed: ${Number(p.sog).toFixed(1)} kn</div>
+          <div>Lat/Lon: ${Number(p.lat).toFixed(5)}, ${Number(p.lon).toFixed(5)}</div>
+          <div>${p.name || ""}${p.call ? " (" + p.call + ")" : ""}</div>
+        </div>
+      `;
+    }
 
-      const pts = dayObj.points;
-      if (!pts || pts.length === 0) {
-        statusEl.textContent = "No points for selected day.";
-        return;
-      }
+    function drawSegment(points, label, styleOptions) {
+      if (!points || points.length === 0) return null;
 
-      statusEl.textContent = `Points: ${pts.length}`;
+      const latlngs = points.map(p => [p.lat, p.lon]);
 
-      // Polyline for the path
-      const latlngs = pts.map(p => [p.lat, p.lon]);
-      const line = L.polyline(latlngs, { color: "#111", weight: 2, opacity: 0.8 });
-      line.addTo(trackLayer);
+      const line = L.polyline(latlngs, styleOptions);
 
-      // Dots with tooltips (downsampled ~1/min, so ok to draw all)
-      for (const p of pts) {
-        const c = speedColor(p.sog);
-        const marker = L.circleMarker([p.lat, p.lon], {
+      // Markers: one per point (if this feels heavy, we can thin to every N points)
+      const markers = points.map(p => {
+        const m = L.circleMarker([p.lat, p.lon], {
           radius: 4,
-          color: c,
           weight: 1,
-          fillColor: c,
-          fillOpacity: 0.8
+          fillOpacity: 0.65
         });
+        m.bindTooltip(makeTooltipHTML(p, label), { sticky: true });
+        return m;
+      });
 
-        const tooltipHtml =
-          `<div>
-            <div><b>${fmtLocal(p.t)}</b></div>
-            <div>Speed: ${p.sog.toFixed(1)} kn</div>
-            <div>Lat/Lon: ${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}</div>
-            <div>Vessel: ${(p.name || "").trim()} ${(p.call || "").trim() ? `(${p.call})` : ""}</div>
-          </div>`;
-
-        marker.bindTooltip(tooltipHtml, { sticky: true, direction: "top" });
-        marker.addTo(trackLayer);
-      }
-
-      // Fit view
-      const bounds = L.latLngBounds(latlngs);
-      map.fitBounds(bounds.pad(0.15));
+      const group = L.layerGroup([line, ...markers]);
+      group.addTo(map);
+      return group;
     }
 
-    function populateDropdown(days) {
+    function renderSelectedDay() {
+      if (!AIS_DATA) return;
+
+      const daySelect = document.getElementById("daySelect");
+      const showArrivals = document.getElementById("toggleArrivals").checked;
+
+      const selectedKey = daySelect.value;
+      const dayObj = AIS_DATA.days.find(d => d.friday_pt === selectedKey);
+      if (!dayObj) return;
+
+      clearLayers();
+
+      const depPts = dayObj.segments?.departure || [];
+      const arrPts = dayObj.segments?.arrival || [];
+
+      // Always draw departures
+      departureLayer = drawSegment(depPts, "Departure (PM)", {
+        weight: 4,
+        opacity: 0.9
+      });
+
+      // Optional arrivals (dashed)
+      if (showArrivals) {
+        arrivalLayer = drawSegment(arrPts, "Arrival (AM)", {
+          weight: 3,
+          opacity: 0.7,
+          dashArray: "7 7"
+        });
+      }
+
+      // Fit bounds: prefer departure; otherwise arrival; otherwise bbox
+      let fitTarget = null;
+      if (departureLayer) {
+        // departureLayer contains polyline + markers; find polyline bounds
+        departureLayer.eachLayer(l => { if (l.getBounds) fitTarget = l; });
+      } else if (arrivalLayer) {
+        arrivalLayer.eachLayer(l => { if (l.getBounds) fitTarget = l; });
+      }
+
+      if (fitTarget && fitTarget.getBounds) {
+        map.fitBounds(fitTarget.getBounds(), { padding: [20, 20] });
+      } else if (boxLayer) {
+        map.fitBounds(boxLayer.getBounds(), { padding: [20, 20] });
+      }
+
+      // Update UI counts + windows
+      const countsEl = document.getElementById("counts");
+      countsEl.textContent = `dep: ${depPts.length} pts${showArrivals ? ` | arr: ${arrPts.length} pts` : ""}`;
+
+      const wEl = document.getElementById("windowInfo");
+      const depStart = depPts.length ? depPts[0].t : null;
+      const depEnd = depPts.length ? depPts[depPts.length - 1].t : null;
+      const arrStart = arrPts.length ? arrPts[0].t : null;
+      const arrEnd = arrPts.length ? arrPts[arrPts.length - 1].t : null;
+
+      const pieces = [];
+      if (depStart && depEnd) pieces.push(`Departure window: <b>${fmtLocal(depStart)}</b> → <b>${fmtLocal(depEnd)}</b>`);
+      if (showArrivals && arrStart && arrEnd) pieces.push(`Arrival window: <b>${fmtLocal(arrStart)}</b> → <b>${fmtLocal(arrEnd)}</b>`);
+      wEl.innerHTML = pieces.join("<br/>") || "";
+    }
+
+    function drawBoundingBoxOverlay(meta) {
+      if (!meta) return;
+
+      const latMin = meta.lat_min, latMax = meta.lat_max;
+      const lonMin = meta.lon_min, lonMax = meta.lon_max;
+
+      const bounds = [
+        [latMin, lonMin],
+        [latMax, lonMax]
+      ];
+
+      if (boxLayer) boxLayer.remove();
+      boxLayer = L.rectangle(bounds, {
+        weight: 2,
+        opacity: 0.7,
+        fillOpacity: 0.05
+      }).addTo(map);
+    }
+
+    function populateUI(data) {
+      const daySelect = document.getElementById("daySelect");
       daySelect.innerHTML = "";
-      for (const d of days) {
+
+      for (const d of data.days) {
         const opt = document.createElement("option");
-        // friday_pt looks like "2025-08-22 00:00:00-07:00"
+        const nice = d.friday_pt.slice(0, 10);
         opt.value = d.friday_pt;
-        opt.textContent = d.friday_pt.slice(0, 10); // YYYY-MM-DD
+        opt.textContent = nice;
         daySelect.appendChild(opt);
       }
-    }
 
-    function getSelectedDay() {
-      const key = daySelect.value;
-      return data.days.find(d => d.friday_pt === key);
-    }
+      document.getElementById("toggleArrivals").checked = false;
 
-    daySelect.addEventListener("change", () => {
-      const d = getSelectedDay();
-      if (d) drawDay(d);
-    });
+      const m = data.meta || {};
+      const metaEl = document.getElementById("meta");
+      metaEl.innerHTML = `
+        <div><b>Vessel</b>: <code>${m.mmsi ?? ""}</code> ${m.note ? `</div><div class="hint">${m.note}</div>` : ""}</div>
+        <div class="hint">Timezone: <code>${m.timezone ?? "America/Los_Angeles"}</code></div>
+        <div class="hint">BBox: lat [${m.lat_min}, ${m.lat_max}] lon [${m.lon_min}, ${m.lon_max}]</div>
+      `;
 
-    fitBtn.addEventListener("click", () => {
-      const d = getSelectedDay();
-      if (!d || !d.points || d.points.length === 0) return;
-      const latlngs = d.points.map(p => [p.lat, p.lon]);
-      map.fitBounds(L.latLngBounds(latlngs).pad(0.15));
-    });
+      drawBoundingBoxOverlay(m);
 
-    // --- load data ---
-    async function load() {
-      try {
-        // IMPORTANT: this file must sit next to index.html in your GitHub repo
-        const resp = await fetch("columbia_tracks_summer_fridays_2025.json", { cache: "no-store" });
-        if (!resp.ok) throw new Error(`HTTP ${resp.status} loading JSON`);
-        data = await resp.json();
-
-        if (!data.days || data.days.length === 0) {
-          statusEl.textContent = "Loaded JSON, but no days found.";
-          return;
-        }
-
-        // Sort days by date string
-        data.days.sort((a,b) => a.friday_pt.localeCompare(b.friday_pt));
-
-        populateDropdown(data.days);
-
-        // Default to latest day
-        daySelect.value = data.days[data.days.length - 1].friday_pt;
-        drawDay(getSelectedDay());
-
-      } catch (err) {
-        console.error(err);
-        statusEl.textContent = "Failed to load JSON. Check filename + repo root.";
-        alert(
-          "Could not load columbia_tracks_summer_fridays_2025.json.\n\n" +
-          "Make sure it is uploaded to the repo root next to index.html.\n" +
-          "Then wait ~30–60s for GitHub Pages to redeploy.\n\n" +
-          "Error: " + err.message
-        );
+      if (data.days.length > 0) {
+        daySelect.value = data.days[0].friday_pt;
+        renderSelectedDay();
       }
     }
 
-    load();
+    // Wire events
+    document.getElementById("daySelect").addEventListener("change", renderSelectedDay);
+    document.getElementById("toggleArrivals").addEventListener("change", renderSelectedDay);
+
+    // Load data
+    fetch(DATA_URL, { cache: "no-store" })
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status} while fetching ${DATA_URL}`);
+        return r.json();
+      })
+      .then(data => {
+        AIS_DATA = data;
+        populateUI(data);
+      })
+      .catch(err => {
+        console.error(err);
+        alert(
+          "Failed to load JSON.\n\n" +
+          "1) Make sure the JSON file name matches exactly (case-sensitive)\n" +
+          "2) Put it in the same folder as index.html or update DATA_URL\n\n" +
+          "Error: " + err.message
+        );
+      });
   </script>
 </body>
 </html>
