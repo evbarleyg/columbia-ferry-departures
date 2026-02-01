@@ -1,69 +1,233 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
-<html>
+<!doctype html>
+<html lang="en">
 <head>
-  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-  <meta http-equiv="Content-Style-Type" content="text/css">
-  <title></title>
-  <meta name="Generator" content="Cocoa HTML Writer">
-  <meta name="CocoaVersion" content="2685.3">
-  <style type="text/css">
-    p.p1 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Times; -webkit-text-stroke: #000000}
-    p.p2 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Times; -webkit-text-stroke: #000000; min-height: 14.0px}
-    span.s1 {font-kerning: none}
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Columbia Ferry Tracks — Summer Fridays 2025</title>
+
+  <!-- Leaflet -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+
+  <style>
+    body { margin: 0; font-family: -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif; }
+    #topbar {
+      padding: 12px 14px;
+      border-bottom: 1px solid #e5e5e5;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    #map { height: calc(100vh - 58px); width: 100%; }
+    .label { font-weight: 600; }
+    select, button {
+      padding: 6px 8px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      background: #fff;
+      font-size: 14px;
+    }
+    #status { color: #555; font-size: 13px; }
+    .pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: #f3f3f3;
+      font-size: 12px;
+      color: #333;
+    }
   </style>
 </head>
 <body>
-<p class="p1"><span class="s1">&lt;!DOCTYPE html&gt;</span></p>
-<p class="p1"><span class="s1">&lt;html&gt;</span></p>
-<p class="p1"><span class="s1">&lt;head&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>&lt;meta charset="utf-8"&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>&lt;title&gt;Columbia Ferry Departures 2025&lt;/title&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>&lt;script src="https://cdn.plot.ly/plotly-latest.min.js"&gt;&lt;/script&gt;</span></p>
-<p class="p1"><span class="s1">&lt;/head&gt;</span></p>
-<p class="p1"><span class="s1">&lt;body&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>&lt;h2&gt;Columbia Ferry Friday Departures — Summer 2025&lt;/h2&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>&lt;div id="chart" style="width:100%;height:600px;"&gt;&lt;/div&gt;</span></p>
-<p class="p2"><span class="s1"></span><br></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>&lt;script&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>fetch("columbia_true_departures_sustained_2025.csv")</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>.then(r =&gt; r.text())</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>.then(text =&gt; {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const rows = text.trim().split("\n").slice(1);</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const dates = [];</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const times = [];</span></p>
-<p class="p2"><span class="s1"></span><br></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>rows.forEach(r =&gt; {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>const cols = r.split(",");</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>const dep = cols[3]; // true_departure_time_pt</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>if (!dep) return;</span></p>
-<p class="p2"><span class="s1"></span><br></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>const d = new Date(dep);</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>dates.push(cols[0]);</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>times.push(d);</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>});</span></p>
-<p class="p2"><span class="s1"></span><br></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const trace = {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>x: dates,</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>y: times,</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>mode: "markers",</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>marker: { size: 10 },</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>text: times.map(t =&gt; t.toLocaleString()),</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>hovertemplate: "%{text}&lt;extra&gt;&lt;/extra&gt;"</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>};</span></p>
-<p class="p2"><span class="s1"></span><br></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const layout = {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>yaxis: {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>title: "Departure Time (PT)",</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>tickformat: "%H:%M"</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>},</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>xaxis: { title: "Friday" },</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>title: "Columbia Ferry Departure Times"</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>};</span></p>
-<p class="p2"><span class="s1"></span><br></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>Plotly.newPlot("chart", [trace], layout);</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>});</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>&lt;/script&gt;</span></p>
-<p class="p1"><span class="s1">&lt;/body&gt;</span></p>
-<p class="p1"><span class="s1">&lt;/html&gt;</span></p>
+  <div id="topbar">
+    <span class="label">Friday:</span>
+    <select id="daySelect"></select>
+    <button id="fitBtn">Fit to Track</button>
+    <span id="status" class="pill">Loading…</span>
+  </div>
+
+  <div id="map"></div>
+
+  <script>
+    // --- helpers ---
+    function fmtLocal(ts) {
+      // ts is ISO string with offset already (America/Los_Angeles)
+      const d = new Date(ts);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth()+1).padStart(2,'0');
+      const dd = String(d.getDate()).padStart(2,'0');
+      const hh = String(d.getHours()).padStart(2,'0');
+      const mi = String(d.getMinutes()).padStart(2,'0');
+      const ss = String(d.getSeconds()).padStart(2,'0');
+      return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
+    }
+
+    function speedColor(knots) {
+      // simple ramp: slow->fast
+      if (knots < 1) return "#666";
+      if (knots < 5) return "#1f77b4";
+      if (knots < 10) return "#2ca02c";
+      if (knots < 15) return "#ff7f0e";
+      return "#d62728";
+    }
+
+    // --- map init ---
+    const map = L.map("map", { preferCanvas: true }).setView([48.72, -122.51], 12);
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    const statusEl = document.getElementById("status");
+    const daySelect = document.getElementById("daySelect");
+    const fitBtn = document.getElementById("fitBtn");
+
+    let data = null;
+    let trackLayer = L.layerGroup().addTo(map);
+    let boxLayer = L.layerGroup().addTo(map);
+
+    function clearLayers() {
+      trackLayer.clearLayers();
+      boxLayer.clearLayers();
+    }
+
+    function drawBoundingBox(meta) {
+      // Draw the data filter bounding box
+      const bounds = [
+        [meta.lat_min, meta.lon_min],
+        [meta.lat_max, meta.lon_max]
+      ];
+      const rect = L.rectangle(bounds, {
+        color: "#000",
+        weight: 1,
+        fillOpacity: 0.05
+      });
+      rect.bindTooltip(
+        `Filter box<br>lat: ${meta.lat_min}–${meta.lat_max}<br>lon: ${meta.lon_min}–${meta.lon_max}`,
+        { sticky: true }
+      );
+      rect.addTo(boxLayer);
+    }
+
+    function drawDay(dayObj) {
+      clearLayers();
+      drawBoundingBox(data.meta);
+
+      const pts = dayObj.points;
+      if (!pts || pts.length === 0) {
+        statusEl.textContent = "No points for selected day.";
+        return;
+      }
+
+      statusEl.textContent = `Points: ${pts.length}`;
+
+      // Polyline for the path
+      const latlngs = pts.map(p => [p.lat, p.lon]);
+      const line = L.polyline(latlngs, { color: "#111", weight: 2, opacity: 0.8 });
+      line.addTo(trackLayer);
+
+      // Dots with tooltips (downsampled ~1/min, so ok to draw all)
+      for (const p of pts) {
+        const c = speedColor(p.sog);
+        const marker = L.circleMarker([p.lat, p.lon], {
+          radius: 4,
+          color: c,
+          weight: 1,
+          fillColor: c,
+          fillOpacity: 0.8
+        });
+
+        const tooltipHtml =
+          `<div>
+            <div><b>${fmtLocal(p.t)}</b></div>
+            <div>Speed: ${p.sog.toFixed(1)} kn</div>
+            <div>Lat/Lon: ${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}</div>
+            <div>Vessel: ${(p.name || "").trim()} ${(p.call || "").trim() ? `(${p.call})` : ""}</div>
+          </div>`;
+
+        marker.bindTooltip(tooltipHtml, { sticky: true, direction: "top" });
+        marker.addTo(trackLayer);
+      }
+
+      // Fit view
+      const bounds = L.latLngBounds(latlngs);
+      map.fitBounds(bounds.pad(0.15));
+    }
+
+    function populateDropdown(days) {
+      daySelect.innerHTML = "";
+      for (const d of days) {
+        const opt = document.createElement("option");
+        // friday_pt looks like "2025-08-22 00:00:00-07:00"
+        opt.value = d.friday_pt;
+        opt.textContent = d.friday_pt.slice(0, 10); // YYYY-MM-DD
+        daySelect.appendChild(opt);
+      }
+    }
+
+    function getSelectedDay() {
+      const key = daySelect.value;
+      return data.days.find(d => d.friday_pt === key);
+    }
+
+    daySelect.addEventListener("change", () => {
+      const d = getSelectedDay();
+      if (d) drawDay(d);
+    });
+
+    fitBtn.addEventListener("click", () => {
+      const d = getSelectedDay();
+      if (!d || !d.points || d.points.length === 0) return;
+      const latlngs = d.points.map(p => [p.lat, p.lon]);
+      map.fitBounds(L.latLngBounds(latlngs).pad(0.15));
+    });
+
+    // --- load data ---
+    async function load() {
+      try {
+        // IMPORTANT: this file must sit next to index.html in your GitHub repo
+        const resp = await fetch("columbia_tracks_summer_fridays_2025.json", { cache: "no-store" });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status} loading JSON`);
+        data = await resp.json();
+
+        if (!data.days || data.days.length === 0) {
+          statusEl.textContent = "Loaded JSON, but no days found.";
+          return;
+        }
+
+        // Sort days by date string
+        data.days.sort((a,b) => a.friday_pt.localeCompare(b.friday_pt));
+
+        populateDropdown(data.days);
+
+        // Default to latest day
+        daySelect.value = data.days[data.days.length - 1].friday_pt;
+        drawDay(getSelectedDay());
+
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = "Failed to load JSON. Check filename + repo root.";
+        alert(
+          "Could not load columbia_tracks_summer_fridays_2025.json.\n\n" +
+          "Make sure it is uploaded to the repo root next to index.html.\n" +
+          "Then wait ~30–60s for GitHub Pages to redeploy.\n\n" +
+          "Error: " + err.message
+        );
+      }
+    }
+
+    load();
+  </script>
 </body>
 </html>
