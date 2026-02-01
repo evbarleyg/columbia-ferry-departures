@@ -1,283 +1,42 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Columbia AIS — Summer Fridays 2025</title>
+  <meta charset="utf-8"/>
+  <title>Columbia Ferry — Friday Departures Summer 2025</title>
 
-  <!-- Leaflet -->
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-    crossorigin=""
-  />
-  <script
-    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-    crossorigin=""
-  ></script>
+  <link rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <style>
-    html, body { height: 100%; margin: 0; }
-    #map { height: 100%; width: 100%; }
+    html, body { height:100%; margin:0; }
+    #map { height:100%; width:100%; }
+
     .panel {
-      position: absolute;
-      top: 12px;
-      left: 12px;
-      z-index: 1000;
-      background: rgba(255,255,255,0.95);
-      border: 1px solid #ddd;
-      border-radius: 10px;
-      padding: 12px 12px 10px;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.12);
-      font: 14px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-      min-width: 320px;
-      max-width: 420px;
+      position:absolute;
+      top:12px;
+      left:12px;
+      z-index:1000;
+      background:white;
+      padding:12px;
+      border-radius:10px;
+      box-shadow:0 4px 16px rgba(0,0,0,.2);
+      font-family:sans-serif;
+      font-size:14px;
+      min-width:300px;
     }
-    .row { display: flex; align-items: center; gap: 10px; margin: 6px 0; flex-wrap: wrap; }
-    .row label { font-weight: 600; }
-    select, input[type="checkbox"] { font-size: 14px; }
-    .meta { font-size: 12px; color: #444; margin-top: 8px; }
-    .meta code { background: #f6f6f6; padding: 2px 4px; border-radius: 5px; }
-    .pill {
-      display: inline-block;
-      padding: 2px 8px;
-      border-radius: 999px;
-      border: 1px solid #ddd;
-      background: #fafafa;
-      font-size: 12px;
-      margin-left: 6px;
-    }
-    .hint { font-size: 12px; color: #555; }
   </style>
 </head>
 
 <body>
-  <div id="map"></div>
+<div id="map"></div>
 
-  <div class="panel">
-    <div class="row">
-      <label for="daySelect">Friday</label>
-      <select id="daySelect"></select>
-      <span id="counts" class="pill"></span>
-    </div>
+<div class="panel">
+  <b>Select Friday:</b>
+  <select id="daySelect"></select>
+  <div id="info" style="margin-top:8px;font-size:12px;color:#333;"></div>
+</div>
 
-    <div class="row">
-      <label style="user-select:none;">
-        <input type="checkbox" id="toggleArrivals" />
-        Show arrival (AM) track
-      </label>
-      <span class="hint">(default: departures only)</span>
-    </div>
-
-    <div class="row hint" id="windowInfo"></div>
-
-    <div class="meta" id="meta"></div>
-  </div>
-
-  <script>
-    // IMPORTANT:
-    // Put this JSON file in the SAME folder as index.html (in your GitHub Pages repo),
-    // or update the path below.
-    const DATA_URL = "./columbia_tracks_split_arrival_departure_2025.json";
-
-    // Map init (Bellingham area)
-    const map = L.map("map", { preferCanvas: true }).setView([48.75, -122.5], 10);
-
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 18,
-      attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
-
-    // Layers
-    let AIS_DATA = null;
-    let arrivalLayer = null;
-    let departureLayer = null;
-    let boxLayer = null;
-
-    function clearLayers() {
-      if (arrivalLayer) { arrivalLayer.remove(); arrivalLayer = null; }
-      if (departureLayer) { departureLayer.remove(); departureLayer = null; }
-      // keep the bbox overlay
-    }
-
-    function fmtLocal(ts) {
-      const d = new Date(ts);
-      return d.toLocaleString(undefined, {
-        year: "numeric", month: "2-digit", day: "2-digit",
-        hour: "2-digit", minute: "2-digit", second: "2-digit"
-      });
-    }
-
-    function makeTooltipHTML(p, label) {
-      return `
-        <div style="min-width:240px;">
-          <div style="font-weight:700; margin-bottom:4px;">${label}</div>
-          <div>${fmtLocal(p.t)}</div>
-          <div>Speed: ${Number(p.sog).toFixed(1)} kn</div>
-          <div>Lat/Lon: ${Number(p.lat).toFixed(5)}, ${Number(p.lon).toFixed(5)}</div>
-          <div>${p.name || ""}${p.call ? " (" + p.call + ")" : ""}</div>
-        </div>
-      `;
-    }
-
-    function drawSegment(points, label, styleOptions) {
-      if (!points || points.length === 0) return null;
-
-      const latlngs = points.map(p => [p.lat, p.lon]);
-
-      const line = L.polyline(latlngs, styleOptions);
-
-      // Markers: one per point (if this feels heavy, we can thin to every N points)
-      const markers = points.map(p => {
-        const m = L.circleMarker([p.lat, p.lon], {
-          radius: 4,
-          weight: 1,
-          fillOpacity: 0.65
-        });
-        m.bindTooltip(makeTooltipHTML(p, label), { sticky: true });
-        return m;
-      });
-
-      const group = L.layerGroup([line, ...markers]);
-      group.addTo(map);
-      return group;
-    }
-
-    function renderSelectedDay() {
-      if (!AIS_DATA) return;
-
-      const daySelect = document.getElementById("daySelect");
-      const showArrivals = document.getElementById("toggleArrivals").checked;
-
-      const selectedKey = daySelect.value;
-      const dayObj = AIS_DATA.days.find(d => d.friday_pt === selectedKey);
-      if (!dayObj) return;
-
-      clearLayers();
-
-      const depPts = dayObj.segments?.departure || [];
-      const arrPts = dayObj.segments?.arrival || [];
-
-      // Always draw departures
-      departureLayer = drawSegment(depPts, "Departure (PM)", {
-        weight: 4,
-        opacity: 0.9
-      });
-
-      // Optional arrivals (dashed)
-      if (showArrivals) {
-        arrivalLayer = drawSegment(arrPts, "Arrival (AM)", {
-          weight: 3,
-          opacity: 0.7,
-          dashArray: "7 7"
-        });
-      }
-
-      // Fit bounds: prefer departure; otherwise arrival; otherwise bbox
-      let fitTarget = null;
-      if (departureLayer) {
-        // departureLayer contains polyline + markers; find polyline bounds
-        departureLayer.eachLayer(l => { if (l.getBounds) fitTarget = l; });
-      } else if (arrivalLayer) {
-        arrivalLayer.eachLayer(l => { if (l.getBounds) fitTarget = l; });
-      }
-
-      if (fitTarget && fitTarget.getBounds) {
-        map.fitBounds(fitTarget.getBounds(), { padding: [20, 20] });
-      } else if (boxLayer) {
-        map.fitBounds(boxLayer.getBounds(), { padding: [20, 20] });
-      }
-
-      // Update UI counts + windows
-      const countsEl = document.getElementById("counts");
-      countsEl.textContent = `dep: ${depPts.length} pts${showArrivals ? ` | arr: ${arrPts.length} pts` : ""}`;
-
-      const wEl = document.getElementById("windowInfo");
-      const depStart = depPts.length ? depPts[0].t : null;
-      const depEnd = depPts.length ? depPts[depPts.length - 1].t : null;
-      const arrStart = arrPts.length ? arrPts[0].t : null;
-      const arrEnd = arrPts.length ? arrPts[arrPts.length - 1].t : null;
-
-      const pieces = [];
-      if (depStart && depEnd) pieces.push(`Departure window: <b>${fmtLocal(depStart)}</b> → <b>${fmtLocal(depEnd)}</b>`);
-      if (showArrivals && arrStart && arrEnd) pieces.push(`Arrival window: <b>${fmtLocal(arrStart)}</b> → <b>${fmtLocal(arrEnd)}</b>`);
-      wEl.innerHTML = pieces.join("<br/>") || "";
-    }
-
-    function drawBoundingBoxOverlay(meta) {
-      if (!meta) return;
-
-      const latMin = meta.lat_min, latMax = meta.lat_max;
-      const lonMin = meta.lon_min, lonMax = meta.lon_max;
-
-      const bounds = [
-        [latMin, lonMin],
-        [latMax, lonMax]
-      ];
-
-      if (boxLayer) boxLayer.remove();
-      boxLayer = L.rectangle(bounds, {
-        weight: 2,
-        opacity: 0.7,
-        fillOpacity: 0.05
-      }).addTo(map);
-    }
-
-    function populateUI(data) {
-      const daySelect = document.getElementById("daySelect");
-      daySelect.innerHTML = "";
-
-      for (const d of data.days) {
-        const opt = document.createElement("option");
-        const nice = d.friday_pt.slice(0, 10);
-        opt.value = d.friday_pt;
-        opt.textContent = nice;
-        daySelect.appendChild(opt);
-      }
-
-      document.getElementById("toggleArrivals").checked = false;
-
-      const m = data.meta || {};
-      const metaEl = document.getElementById("meta");
-      metaEl.innerHTML = `
-        <div><b>Vessel</b>: <code>${m.mmsi ?? ""}</code> ${m.note ? `</div><div class="hint">${m.note}</div>` : ""}</div>
-        <div class="hint">Timezone: <code>${m.timezone ?? "America/Los_Angeles"}</code></div>
-        <div class="hint">BBox: lat [${m.lat_min}, ${m.lat_max}] lon [${m.lon_min}, ${m.lon_max}]</div>
-      `;
-
-      drawBoundingBoxOverlay(m);
-
-      if (data.days.length > 0) {
-        daySelect.value = data.days[0].friday_pt;
-        renderSelectedDay();
-      }
-    }
-
-    // Wire events
-    document.getElementById("daySelect").addEventListener("change", renderSelectedDay);
-    document.getElementById("toggleArrivals").addEventListener("change", renderSelectedDay);
-
-    // Load data
-    fetch(DATA_URL, { cache: "no-store" })
-      .then(r => {
-        if (!r.ok) throw new Error(`HTTP ${r.status} while fetching ${DATA_URL}`);
-        return r.json();
-      })
-      .then(data => {
-        AIS_DATA = data;
-        populateUI(data);
-      })
-      .catch(err => {
-        console.error(err);
-        alert(
-          "Failed to load JSON.\n\n" +
-          "1) Make sure the JSON file name matches exactly (case-sensitive)\n" +
-          "2) Put it in the same folder as index.html or update DATA_URL\n\n" +
-          "Error: " + err.message
-        );
-      });
-  </script>
-</body>
-</html>
+<script>
+con
