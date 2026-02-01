@@ -21,9 +21,21 @@
       --shadow: 0 16px 40px rgba(0,0,0,0.35);
       --radius: 14px;
       --pad: 12px;
+
+      --drawerMax: 55vh;     /* mobile drawer height */
+      --drawerPeek: 56px;    /* handle bar area */
     }
 
-    html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+      overscroll-behavior: none;
+    }
+
+    /* Desktop layout */
     #app {
       height: 100%;
       display: grid;
@@ -38,6 +50,7 @@
       border-right: 1px solid var(--border);
       background: linear-gradient(180deg, rgba(20,26,40,0.95), rgba(10,14,22,0.90));
       overflow: auto;
+      -webkit-overflow-scrolling: touch;
     }
 
     .card {
@@ -82,7 +95,9 @@
       max-height: 360px;
       overflow: auto;
       padding-right: 6px;
+      -webkit-overflow-scrolling: touch;
     }
+
     .day {
       display: flex;
       justify-content: space-between;
@@ -96,7 +111,11 @@
     }
     .day:hover { background: rgba(255,255,255,0.08); }
     .day .d { font-weight: 700; font-size: 13px; }
-    .day .t { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: 12px; color: var(--muted); }
+    .day .t {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 12px;
+      color: var(--muted);
+    }
 
     .legend {
       display: grid;
@@ -120,15 +139,14 @@
     }
     .legendRow { display: flex; justify-content: space-between; gap: 10px; }
 
-    /* Mobile */
-    @media (max-width: 920px) {
-      #app { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
-      .panel { border-right: none; border-bottom: 1px solid var(--border); height: auto; }
-      .list { max-height: 240px; }
-    }
-
     /* Leaflet tooltip tweaks */
-    .leaflet-tooltip { background: rgba(10,14,22,0.92); color: var(--text); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow); }
+    .leaflet-tooltip {
+      background: rgba(10,14,22,0.92);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      box-shadow: var(--shadow);
+    }
     .tt { font-size: 12px; line-height: 1.25; }
     .tt .k { color: var(--muted); }
     .pill {
@@ -139,15 +157,118 @@
       font-size: 11px;
       margin-top: 6px;
     }
+
+    /* ============ Mobile drawer mode ============ */
+    @media (max-width: 920px) {
+      #app {
+        grid-template-columns: 1fr;
+        grid-template-rows: 1fr;
+      }
+
+      /* panel becomes a bottom drawer overlay */
+      .panel {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+
+        height: var(--drawerMax);
+        max-height: var(--drawerMax);
+
+        border-right: none;
+        border-top: 1px solid var(--border);
+
+        z-index: 1200;
+
+        transform: translateY(calc(var(--drawerMax) - var(--drawerPeek)));
+        transition: transform 180ms ease-out;
+
+        border-top-left-radius: 18px;
+        border-top-right-radius: 18px;
+
+        padding-top: 10px;
+        padding-bottom: 14px;
+      }
+
+      .panel.open {
+        transform: translateY(0);
+      }
+
+      /* Drawer handle */
+      .drawerHandle {
+        position: sticky;
+        top: 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 6px 6px 10px;
+        z-index: 1300;
+        background: linear-gradient(180deg, rgba(20,26,40,0.95), rgba(20,26,40,0.55));
+        border-top-left-radius: 18px;
+        border-top-right-radius: 18px;
+      }
+
+      .grabber {
+        width: 46px;
+        height: 5px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.25);
+        margin: 0 auto;
+      }
+
+      .drawerTitle {
+        font-size: 12px;
+        color: var(--muted);
+        text-align: center;
+        flex: 1 1 auto;
+      }
+
+      .drawerBtn {
+        flex: 0 0 auto;
+        padding: 8px 10px;
+        border-radius: 999px;
+      }
+
+      /* List height smaller on mobile */
+      .list { max-height: 260px; }
+
+      /* Floating open button when drawer closed */
+      #openDrawerFab {
+        position: fixed;
+        left: 12px;
+        bottom: 12px;
+        z-index: 1250;
+        border-radius: 999px;
+        padding: 10px 12px;
+        box-shadow: var(--shadow);
+        background: rgba(16, 22, 34, 0.92);
+        border: 1px solid var(--border);
+        color: var(--text);
+        font-weight: 700;
+      }
+      #openDrawerFab.hidden { display: none; }
+    }
   </style>
 </head>
+
 <body>
   <div id="app">
-    <div class="panel">
+    <div class="panel" id="panel">
+      <!-- Mobile-only drawer handle (still harmless on desktop) -->
+      <div class="drawerHandle" id="drawerHandle" style="display:none;">
+        <button class="drawerBtn" id="closeDrawer">Close</button>
+        <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:6px;">
+          <div class="grabber"></div>
+          <div class="drawerTitle">Controls</div>
+        </div>
+        <button class="drawerBtn" id="fit2">Fit</button>
+      </div>
+
       <div class="card">
         <h1>Columbia — Friday Departures (AIS)</h1>
         <div class="sub">
-          Click a date or use checkboxes to show multiple Fridays.
+          Tap a date or use checkboxes to show multiple Fridays.
           Color encodes departure time relative to 6:00 PM PT.
         </div>
       </div>
@@ -190,6 +311,9 @@
     <div id="map"></div>
   </div>
 
+  <!-- Mobile FAB to open drawer -->
+  <button id="openDrawerFab" class="hidden">Controls</button>
+
   <script
     src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
@@ -199,7 +323,6 @@
   <script>
     const JSON_PATH = "./columbia_tracks_summer_fridays_2025.json";
     const TZ_LABEL = "PT";
-    const SIX_PM_MIN = 18 * 60;
 
     // UI elements
     const elList = document.getElementById("dayList");
@@ -209,6 +332,40 @@
     const btnAll = document.getElementById("selectAll");
     const btnNone = document.getElementById("selectNone");
     const btnFit = document.getElementById("fit");
+
+    // Mobile drawer UI
+    const panel = document.getElementById("panel");
+    const openFab = document.getElementById("openDrawerFab");
+    const drawerHandle = document.getElementById("drawerHandle");
+    const closeDrawerBtn = document.getElementById("closeDrawer");
+    const fit2Btn = document.getElementById("fit2");
+
+    function isMobile() { return window.matchMedia("(max-width: 920px)").matches; }
+
+    function setDrawer(open) {
+      if (!isMobile()) return;
+      panel.classList.toggle("open", !!open);
+      openFab.classList.toggle("hidden", !!open);
+    }
+
+    function configureMobileUI() {
+      if (isMobile()) {
+        drawerHandle.style.display = "flex";
+        openFab.classList.remove("hidden");
+        // start closed
+        setDrawer(false);
+      } else {
+        drawerHandle.style.display = "none";
+        openFab.classList.add("hidden");
+        panel.classList.remove("open");
+      }
+    }
+
+    openFab.addEventListener("click", () => setDrawer(true));
+    closeDrawerBtn.addEventListener("click", () => setDrawer(false));
+    fit2Btn.addEventListener("click", () => fitToSelection());
+
+    window.addEventListener("resize", configureMobileUI);
 
     // Map
     const map = L.map("map", { zoomControl: true }).setView([48.73, -122.52], 12);
@@ -235,7 +392,6 @@
       const max = 20.5*60;
       const t = clamp01((depMinutes - min) / (max - min));
 
-      // simple 5-stop gradient interpolation
       const stops = [
         { t: 0.00, c: [45, 212, 191] }, // teal
         { t: 0.25, c: [163, 230, 53] }, // lime
@@ -255,7 +411,6 @@
     }
 
     function parseISO(s) {
-      // Your JSON has ISO strings with timezone offset; Date can parse.
       const d = new Date(s);
       return isNaN(d.getTime()) ? null : d;
     }
@@ -272,24 +427,21 @@
     }
 
     function fmtDateKey(friday_pt_str) {
-      // friday_pt_str looks like "2025-08-22 00:00:00-07:00" (string from pandas)
-      // We'll display YYYY-MM-DD from first 10 chars.
       return friday_pt_str.slice(0, 10);
     }
 
-    // Heuristic: keep only the evening "departure" track.
-    // We filter points to a window around departure: from 14:00 to 23:59 local.
-    // (This drops the morning arrival track.)
+    // Filter to only show the evening "departure" track.
+    // Window: from 14:00 to 23:59 local. Drops the morning arrival.
     function filterToDepartureWindow(points) {
       return points.filter(p => {
         const d = parseISO(p.t);
         if (!d) return false;
         const m = minutesAfterMidnight(d);
-        return m >= 14*60; // 2:00 PM onward
+        return m >= 14*60;
       });
     }
 
-    // Find "true departure time" from points: first time we hit sustained >=8 kn for 3 pings.
+    // Find "true departure time": first time we hit sustained >=8 kn for 3 pings.
     function detectDeparture(points) {
       const pts = points
         .map(p => ({...p, d: parseISO(p.t)}))
@@ -349,10 +501,8 @@
       updateGeofenceVisibility();
 
       const showPts = elShowPoints.checked;
+      const selCount = selected.size;
 
-      let allLatLng = [];
-
-      // Draw all selected days
       for (const day of DATA.days) {
         if (!selected.has(day.friday_pt)) continue;
 
@@ -364,7 +514,6 @@
         const color = depMinutes != null ? departureColor(depMinutes) : "rgba(255,255,255,0.65)";
 
         const latlngs = depOnly.map(p => [p.lat, p.lon]);
-        allLatLng.push(...latlngs);
 
         L.polyline(latlngs, { color, weight: 4, opacity: 0.95 }).addTo(linesLayer);
 
@@ -372,6 +521,7 @@
           for (const p of depOnly) {
             const d = parseISO(p.t);
             if (!d) continue;
+
             const tip = `
               <div class="tt">
                 <div><span class="k">Date:</span> ${fmtDateKey(day.friday_pt)}</div>
@@ -380,6 +530,7 @@
                 <div class="pill" style="border-color:${color};">${depTime ? `Dep≈ ${fmtTime(depTime)} ${TZ_LABEL}` : "Dep: n/a"}</div>
               </div>
             `;
+
             L.circleMarker([p.lat, p.lon], {
               radius: 4,
               weight: 1,
@@ -391,15 +542,10 @@
         }
       }
 
-      // status line
-      const selCount = selected.size;
       elStatus.textContent = `${selCount} Friday(s) selected. Dots=${showPts ? "on" : "off"} · Geofence=${elShowGeofence.checked ? "on" : "off"}`;
-
-      // Optional: don’t auto-fit every render (annoying on mobile). Fit button does it.
     }
 
     function fitToSelection() {
-      // Gather bounds from drawn layers + geofence if enabled
       const bounds = [];
       linesLayer.eachLayer(l => {
         if (l.getBounds) bounds.push(l.getBounds());
@@ -430,7 +576,7 @@
             <input type="checkbox" ${selected.has(key) ? "checked" : ""} data-key="${key}" />
           </label>
         `;
-        // clicking row toggles too (except direct checkbox click)
+
         d.addEventListener("click", (e) => {
           const isInput = e.target && e.target.tagName === "INPUT";
           if (!isInput) {
@@ -454,6 +600,8 @@
 
     async function init() {
       try {
+        configureMobileUI();
+
         const resp = await fetch(JSON_PATH, { cache: "no-store" });
         if (!resp.ok) throw new Error(`fetch failed: ${resp.status}`);
         DATA = await resp.json();
@@ -463,7 +611,6 @@
         const lastN = 4;
         selected = new Set(days.slice(Math.max(0, days.length - lastN)));
 
-        // Draw geofence from meta
         if (DATA.meta) drawGeofence(DATA.meta);
 
         buildList();
