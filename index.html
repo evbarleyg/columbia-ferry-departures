@@ -1,499 +1,191 @@
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html>
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Columbia Ferry — Friday Departures (AIS)</title>
+<meta charset="utf-8" />
+<title>Columbia Ferry Departures – Summer 2025</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-    crossorigin=""
-  />
-  <style>
-    :root {
-      --bg: #0b0f17;
-      --panel: rgba(16, 22, 34, 0.92);
-      --text: #e7ecf4;
-      --muted: #aab6cc;
-      --border: rgba(255,255,255,0.10);
-      --shadow: 0 16px 40px rgba(0,0,0,0.35);
-      --radius: 14px;
-      --pad: 12px;
-    }
+<link
+  rel="stylesheet"
+  href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+/>
 
-    html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
-    #app {
-      height: 100%;
-      display: grid;
-      grid-template-columns: 360px 1fr;
-    }
-    #map { height: 100%; width: 100%; }
+<style>
+html, body {
+  margin: 0;
+  height: 100%;
+}
 
-    .panel {
-      height: 100%;
-      box-sizing: border-box;
-      padding: 14px;
-      border-right: 1px solid var(--border);
-      background: linear-gradient(180deg, rgba(20,26,40,0.95), rgba(10,14,22,0.90));
-      overflow: auto;
-    }
+#map {
+  width: 100%;
+  height: 100vh;
+}
 
-    .card {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      padding: var(--pad);
-      margin-bottom: 12px;
-    }
+/* Control panel */
+#controls {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: white;
+  padding: 10px;
+  max-height: 80vh;
+  overflow-y: auto;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+  z-index: 1000;
+  width: 260px;
+}
 
-    h1 { font-size: 16px; margin: 0 0 8px; }
-    .sub { font-size: 12px; color: var(--muted); line-height: 1.35; }
+#controls.hidden {
+  display: none;
+}
 
-    .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-    .row > * { flex: 1 1 auto; }
+#toggleControls {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1100;
+  background: #007bff;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 14px;
+}
 
-    button {
-      appearance: none;
-      background: rgba(255,255,255,0.08);
-      color: var(--text);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 10px 12px;
-      cursor: pointer;
-      font-weight: 600;
-    }
-    button:hover { background: rgba(255,255,255,0.12); }
+.checkbox-list {
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  padding: 6px;
+}
 
-    .toggle {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 13px;
-      color: var(--text);
-      user-select: none;
-    }
-    .toggle input { width: 18px; height: 18px; }
-
-    .list {
-      margin-top: 8px;
-      max-height: 360px;
-      overflow: auto;
-      padding-right: 6px;
-    }
-    .day {
-      display: flex;
-      justify-content: space-between;
-      gap: 8px;
-      padding: 10px 10px;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      background: rgba(255,255,255,0.05);
-      margin-bottom: 8px;
-      cursor: pointer;
-    }
-    .day:hover { background: rgba(255,255,255,0.08); }
-    .day .d { font-weight: 700; font-size: 13px; }
-    .day .t { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: 12px; color: var(--muted); }
-
-    .legend {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 8px;
-      font-size: 12px;
-      color: var(--muted);
-    }
-    .bar {
-      height: 10px;
-      border-radius: 999px;
-      border: 1px solid var(--border);
-      background: linear-gradient(90deg,
-        #2dd4bf 0%,
-        #a3e635 25%,
-        #fbbf24 50%,
-        #fb7185 75%,
-        #ef4444 100%
-      );
-      opacity: 0.95;
-    }
-    .legendRow { display: flex; justify-content: space-between; gap: 10px; }
-
-    /* Mobile */
-    @media (max-width: 920px) {
-      #app { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
-      .panel { border-right: none; border-bottom: 1px solid var(--border); height: auto; }
-      .list { max-height: 240px; }
-    }
-
-    /* Leaflet tooltip tweaks */
-    .leaflet-tooltip { background: rgba(10,14,22,0.92); color: var(--text); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow); }
-    .tt { font-size: 12px; line-height: 1.25; }
-    .tt .k { color: var(--muted); }
-    .pill {
-      display: inline-block;
-      padding: 2px 8px;
-      border-radius: 999px;
-      border: 1px solid var(--border);
-      font-size: 11px;
-      margin-top: 6px;
-    }
-  </style>
+@media (max-width: 768px) {
+  #controls {
+    width: 90%;
+    left: 5%;
+  }
+}
+</style>
 </head>
+
 <body>
-  <div id="app">
-    <div class="panel">
-      <div class="card">
-        <h1>Columbia — Friday Departures (AIS)</h1>
-        <div class="sub">
-          Click a date or use checkboxes to show multiple Fridays.
-          Color encodes departure time relative to 6:00 PM PT.
-        </div>
-      </div>
 
-      <div class="card">
-        <div class="row" style="margin-bottom:10px;">
-          <label class="toggle">
-            <input id="showGeofence" type="checkbox" checked />
-            Show geofence
-          </label>
-          <label class="toggle">
-            <input id="showPoints" type="checkbox" checked />
-            Show dots
-          </label>
-        </div>
+<button id="toggleControls">Show Controls</button>
 
-        <div class="row" style="margin-bottom:10px;">
-          <button id="selectAll">Select all</button>
-          <button id="selectNone">Select none</button>
-          <button id="fit">Fit to selection</button>
-        </div>
+<div id="controls" class="hidden">
+  <h3>Friday Departures</h3>
+  <div id="dayList" class="checkbox-list"></div>
+</div>
 
-        <div class="legend">
-          <div class="bar" title="Earlier (green) → later (red)"></div>
-          <div class="legendRow">
-            <span>pre-6pm</span>
-            <span>6pm</span>
-            <span>late</span>
-          </div>
-          <div class="sub" id="status" style="margin-top:6px;">Loading…</div>
-        </div>
-      </div>
+<div id="map"></div>
 
-      <div class="card">
-        <div class="sub" style="margin-bottom:8px;">Fridays (checkbox selection)</div>
-        <div class="list" id="dayList"></div>
-      </div>
-    </div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-    <div id="map"></div>
-  </div>
+<script>
+const map = L.map("map").setView([48.72, -122.55], 11);
 
-  <script
-    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-    crossorigin=""
-  ></script>
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  attribution: "© OpenStreetMap"
+}).addTo(map);
 
-  <script>
-    const JSON_PATH = "./columbia_tracks_summer_fridays_2025.json";
-    const TZ_LABEL = "PT";
-    const SIX_PM_MIN = 18 * 60;
+// Geofence box (same as your JSON script)
+const LAT_MIN = 48.68, LAT_MAX = 48.78;
+const LON_MIN = -122.62, LON_MAX = -122.45;
 
-    // UI elements
-    const elList = document.getElementById("dayList");
-    const elStatus = document.getElementById("status");
-    const elShowGeofence = document.getElementById("showGeofence");
-    const elShowPoints = document.getElementById("showPoints");
-    const btnAll = document.getElementById("selectAll");
-    const btnNone = document.getElementById("selectNone");
-    const btnFit = document.getElementById("fit");
+const geofence = L.rectangle([
+  [LAT_MIN, LON_MIN],
+  [LAT_MAX, LON_MAX]
+], { color: "purple", weight: 2, fillOpacity: 0.05 }).addTo(map);
 
-    // Map
-    const map = L.map("map", { zoomControl: true }).setView([48.73, -122.52], 12);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 18,
-      attribution: "&copy; OpenStreetMap contributors"
-    }).addTo(map);
+// Layer group
+let trackLayer = L.layerGroup().addTo(map);
 
-    // Layers
-    const linesLayer = L.layerGroup().addTo(map);
-    const pointsLayer = L.layerGroup().addTo(map);
-    let geofenceRect = null;
+// Controls toggle
+const toggleBtn = document.getElementById("toggleControls");
+const controls = document.getElementById("controls");
 
-    // State
-    let DATA = null;
-    let selected = new Set(); // friday_pt strings
+toggleBtn.onclick = () => {
+  controls.classList.toggle("hidden");
+  toggleBtn.textContent = controls.classList.contains("hidden")
+    ? "Show Controls"
+    : "Hide Controls";
+};
 
-    function clamp01(x) { return Math.max(0, Math.min(1, x)); }
+// Load JSON
+fetch("./columbia_tracks_summer_fridays_2025.json")
+  .then(res => res.json())
+  .then(data => initUI(data));
 
-    // Time color scale: map minutes after midnight to gradient around 6pm.
-    // We map [16:00..20:30] to [0..1] for a stable visual.
-    function departureColor(depMinutes) {
-      const min = 16*60;
-      const max = 20.5*60;
-      const t = clamp01((depMinutes - min) / (max - min));
+function initUI(data) {
+  const list = document.getElementById("dayList");
 
-      // simple 5-stop gradient interpolation
-      const stops = [
-        { t: 0.00, c: [45, 212, 191] }, // teal
-        { t: 0.25, c: [163, 230, 53] }, // lime
-        { t: 0.50, c: [251, 191, 36] }, // amber
-        { t: 0.75, c: [251, 113, 133] }, // pink
-        { t: 1.00, c: [239, 68, 68] }    // red
-      ];
-      let a = stops[0], b = stops[stops.length-1];
-      for (let i=0; i<stops.length-1; i++) {
-        if (t >= stops[i].t && t <= stops[i+1].t) { a = stops[i]; b = stops[i+1]; break; }
-      }
-      const u = (t - a.t) / (b.t - a.t || 1);
-      const r = Math.round(a.c[0] + (b.c[0] - a.c[0]) * u);
-      const g = Math.round(a.c[1] + (b.c[1] - a.c[1]) * u);
-      const b2 = Math.round(a.c[2] + (b.c[2] - a.c[2]) * u);
-      return `rgb(${r},${g},${b2})`;
-    }
+  data.days.forEach((day, i) => {
+    const label = document.createElement("label");
+    label.style.display = "block";
 
-    function parseISO(s) {
-      // Your JSON has ISO strings with timezone offset; Date can parse.
-      const d = new Date(s);
-      return isNaN(d.getTime()) ? null : d;
-    }
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.value = i;
 
-    function minutesAfterMidnight(d) {
-      return d.getHours()*60 + d.getMinutes() + d.getSeconds()/60;
-    }
+    label.appendChild(cb);
+    label.appendChild(document.createTextNode(" " + day.friday_pt.split("T")[0]));
 
-    function fmtTime(d) {
-      const hh = String(d.getHours()).padStart(2,"0");
-      const mm = String(d.getMinutes()).padStart(2,"0");
-      const ss = String(d.getSeconds()).padStart(2,"0");
-      return `${hh}:${mm}:${ss}`;
-    }
+    list.appendChild(label);
+  });
 
-    function fmtDateKey(friday_pt_str) {
-      // friday_pt_str looks like "2025-08-22 00:00:00-07:00" (string from pandas)
-      // We'll display YYYY-MM-DD from first 10 chars.
-      return friday_pt_str.slice(0, 10);
-    }
+  list.addEventListener("change", () => updateMap(data));
+}
 
-    // Heuristic: keep only the evening "departure" track.
-    // We filter points to a window around departure: from 14:00 to 23:59 local.
-    // (This drops the morning arrival track.)
-    function filterToDepartureWindow(points) {
-      return points.filter(p => {
-        const d = parseISO(p.t);
-        if (!d) return false;
-        const m = minutesAfterMidnight(d);
-        return m >= 14*60; // 2:00 PM onward
-      });
-    }
+// Color scale based on time vs 6pm
+function timeColor(dateObj) {
+  const minutes = dateObj.getHours() * 60 + dateObj.getMinutes();
+  const sixPM = 18 * 60;
 
-    // Find "true departure time" from points: first time we hit sustained >=8 kn for 3 pings.
-    function detectDeparture(points) {
-      const pts = points
-        .map(p => ({...p, d: parseISO(p.t)}))
-        .filter(p => p.d)
-        .sort((a,b) => a.d - b.d);
+  if (minutes < sixPM - 15) return "blue";
+  if (minutes <= sixPM + 15) return "green";
+  return "red";
+}
 
-      const FAST_MIN = 8.0;
-      const SUSTAIN_N = 3;
+// Filter to only show departure leg (remove morning arrival)
+function isDeparturePoint(pt) {
+  return pt.sog >= 2; // remove docked & slow drifting
+}
 
-      let run = 0;
-      for (let i=0; i<pts.length; i++) {
-        if ((+pts[i].sog) >= FAST_MIN) {
-          run++;
-          if (run >= SUSTAIN_N) {
-            return pts[i - (SUSTAIN_N - 1)].d;
-          }
-        } else {
-          run = 0;
-        }
-      }
-      return null;
-    }
+function updateMap(data) {
+  trackLayer.clearLayers();
 
-    function clearLayers() {
-      linesLayer.clearLayers();
-      pointsLayer.clearLayers();
-    }
+  const checked = [...document.querySelectorAll("#dayList input:checked")]
+    .map(cb => parseInt(cb.value));
 
-    function drawGeofence(meta) {
-      if (geofenceRect) {
-        map.removeLayer(geofenceRect);
-        geofenceRect = null;
-      }
-      const bounds = [
-        [meta.lat_min, meta.lon_min],
-        [meta.lat_max, meta.lon_max]
-      ];
-      geofenceRect = L.rectangle(bounds, {
-        color: "rgba(255,255,255,0.7)",
-        weight: 2,
-        fillColor: "rgba(255,255,255,0.08)",
-        fillOpacity: 1.0
-      });
-      if (elShowGeofence.checked) geofenceRect.addTo(map);
-    }
+  checked.forEach(idx => {
+    const day = data.days[idx];
 
-    function updateGeofenceVisibility() {
-      if (!geofenceRect) return;
-      if (elShowGeofence.checked) geofenceRect.addTo(map);
-      else map.removeLayer(geofenceRect);
-    }
+    day.points
+      .filter(isDeparturePoint)
+      .forEach(p => {
+        const t = new Date(p.t);
 
-    function render() {
-      if (!DATA) return;
+        const color = timeColor(t);
 
-      clearLayers();
-      updateGeofenceVisibility();
-
-      const showPts = elShowPoints.checked;
-
-      let allLatLng = [];
-
-      // Draw all selected days
-      for (const day of DATA.days) {
-        if (!selected.has(day.friday_pt)) continue;
-
-        const depOnly = filterToDepartureWindow(day.points);
-        if (depOnly.length < 2) continue;
-
-        const depTime = detectDeparture(depOnly);
-        const depMinutes = depTime ? minutesAfterMidnight(depTime) : null;
-        const color = depMinutes != null ? departureColor(depMinutes) : "rgba(255,255,255,0.65)";
-
-        const latlngs = depOnly.map(p => [p.lat, p.lon]);
-        allLatLng.push(...latlngs);
-
-        L.polyline(latlngs, { color, weight: 4, opacity: 0.95 }).addTo(linesLayer);
-
-        if (showPts) {
-          for (const p of depOnly) {
-            const d = parseISO(p.t);
-            if (!d) continue;
-            const tip = `
-              <div class="tt">
-                <div><span class="k">Date:</span> ${fmtDateKey(day.friday_pt)}</div>
-                <div><span class="k">Time:</span> ${fmtTime(d)} ${TZ_LABEL}</div>
-                <div><span class="k">SOG:</span> ${(+p.sog).toFixed(1)} kn</div>
-                <div class="pill" style="border-color:${color};">${depTime ? `Dep≈ ${fmtTime(depTime)} ${TZ_LABEL}` : "Dep: n/a"}</div>
-              </div>
-            `;
-            L.circleMarker([p.lat, p.lon], {
-              radius: 4,
-              weight: 1,
-              color: "rgba(0,0,0,0.25)",
-              fillColor: color,
-              fillOpacity: 0.95
-            }).bindTooltip(tip, { sticky: true }).addTo(pointsLayer);
-          }
-        }
-      }
-
-      // status line
-      const selCount = selected.size;
-      elStatus.textContent = `${selCount} Friday(s) selected. Dots=${showPts ? "on" : "off"} · Geofence=${elShowGeofence.checked ? "on" : "off"}`;
-
-      // Optional: don’t auto-fit every render (annoying on mobile). Fit button does it.
-    }
-
-    function fitToSelection() {
-      // Gather bounds from drawn layers + geofence if enabled
-      const bounds = [];
-      linesLayer.eachLayer(l => {
-        if (l.getBounds) bounds.push(l.getBounds());
-      });
-      if (bounds.length === 0) return;
-
-      let b = bounds[0];
-      for (let i=1; i<bounds.length; i++) b = b.extend(bounds[i]);
-      map.fitBounds(b.pad(0.10));
-    }
-
-    function buildList() {
-      elList.innerHTML = "";
-      for (const day of DATA.days) {
-        const key = day.friday_pt;
-        const depOnly = filterToDepartureWindow(day.points);
-        const depTime = detectDeparture(depOnly);
-        const depLabel = depTime ? `${fmtTime(depTime)} ${TZ_LABEL}` : "n/a";
-
-        const d = document.createElement("div");
-        d.className = "day";
-        d.innerHTML = `
-          <div>
-            <div class="d">${fmtDateKey(key)}</div>
-            <div class="t">Dep≈ ${depLabel}</div>
-          </div>
-          <label class="toggle" style="margin-left:auto;">
-            <input type="checkbox" ${selected.has(key) ? "checked" : ""} data-key="${key}" />
-          </label>
-        `;
-        // clicking row toggles too (except direct checkbox click)
-        d.addEventListener("click", (e) => {
-          const isInput = e.target && e.target.tagName === "INPUT";
-          if (!isInput) {
-            const cb = d.querySelector("input[type=checkbox]");
-            cb.checked = !cb.checked;
-            cb.dispatchEvent(new Event("change"));
-          }
+        const marker = L.circleMarker([p.lat, p.lon], {
+          radius: 4,
+          color: color,
+          fillOpacity: 0.8
         });
 
-        const cb = d.querySelector("input[type=checkbox]");
-        cb.addEventListener("change", () => {
-          const k = cb.getAttribute("data-key");
-          if (cb.checked) selected.add(k);
-          else selected.delete(k);
-          render();
-        });
+        marker.bindTooltip(
+          `<b>${day.friday_pt.split("T")[0]}</b><br>
+           Time: ${t.toLocaleTimeString()}<br>
+           Speed: ${p.sog.toFixed(1)} kn`,
+          { sticky: true }
+        );
 
-        elList.appendChild(d);
-      }
-    }
+        marker.addTo(trackLayer);
+      });
+  });
+}
+</script>
 
-    async function init() {
-      try {
-        const resp = await fetch(JSON_PATH, { cache: "no-store" });
-        if (!resp.ok) throw new Error(`fetch failed: ${resp.status}`);
-        DATA = await resp.json();
-
-        // default selection: last 4 Fridays
-        const days = DATA.days.map(d => d.friday_pt);
-        const lastN = 4;
-        selected = new Set(days.slice(Math.max(0, days.length - lastN)));
-
-        // Draw geofence from meta
-        if (DATA.meta) drawGeofence(DATA.meta);
-
-        buildList();
-        render();
-        fitToSelection();
-      } catch (err) {
-        elStatus.textContent = "Failed to load JSON. Check path + GitHub Pages.";
-        console.error(err);
-      }
-    }
-
-    // UI wiring
-    elShowGeofence.addEventListener("change", () => { updateGeofenceVisibility(); });
-    elShowPoints.addEventListener("change", () => { render(); });
-
-    btnAll.addEventListener("click", () => {
-      selected = new Set(DATA.days.map(d => d.friday_pt));
-      buildList();
-      render();
-    });
-
-    btnNone.addEventListener("click", () => {
-      selected = new Set();
-      buildList();
-      render();
-    });
-
-    btnFit.addEventListener("click", () => fitToSelection());
-
-    init();
-  </script>
 </body>
 </html>
