@@ -1,0 +1,69 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta http-equiv="Content-Style-Type" content="text/css">
+  <title></title>
+  <meta name="Generator" content="Cocoa HTML Writer">
+  <meta name="CocoaVersion" content="2685.3">
+  <style type="text/css">
+    p.p1 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Times; -webkit-text-stroke: #000000}
+    p.p2 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Times; -webkit-text-stroke: #000000; min-height: 14.0px}
+    span.s1 {font-kerning: none}
+  </style>
+</head>
+<body>
+<p class="p1"><span class="s1">&lt;!DOCTYPE html&gt;</span></p>
+<p class="p1"><span class="s1">&lt;html&gt;</span></p>
+<p class="p1"><span class="s1">&lt;head&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>&lt;meta charset="utf-8"&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>&lt;title&gt;Columbia Ferry Departures 2025&lt;/title&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>&lt;script src="https://cdn.plot.ly/plotly-latest.min.js"&gt;&lt;/script&gt;</span></p>
+<p class="p1"><span class="s1">&lt;/head&gt;</span></p>
+<p class="p1"><span class="s1">&lt;body&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>&lt;h2&gt;Columbia Ferry Friday Departures — Summer 2025&lt;/h2&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>&lt;div id="chart" style="width:100%;height:600px;"&gt;&lt;/div&gt;</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>&lt;script&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>fetch("columbia_true_departures_sustained_2025.csv")</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>.then(r =&gt; r.text())</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>.then(text =&gt; {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const rows = text.trim().split("\n").slice(1);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const dates = [];</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const times = [];</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>rows.forEach(r =&gt; {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>const cols = r.split(",");</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>const dep = cols[3]; // true_departure_time_pt</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>if (!dep) return;</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>const d = new Date(dep);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>dates.push(cols[0]);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>times.push(d);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>});</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const trace = {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>x: dates,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>y: times,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>mode: "markers",</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>marker: { size: 10 },</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>text: times.map(t =&gt; t.toLocaleString()),</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>hovertemplate: "%{text}&lt;extra&gt;&lt;/extra&gt;"</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>};</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const layout = {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>yaxis: {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>title: "Departure Time (PT)",</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>tickformat: "%H:%M"</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>},</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>xaxis: { title: "Friday" },</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">          </span>title: "Columbia Ferry Departure Times"</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>};</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>Plotly.newPlot("chart", [trace], layout);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>});</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>&lt;/script&gt;</span></p>
+<p class="p1"><span class="s1">&lt;/body&gt;</span></p>
+<p class="p1"><span class="s1">&lt;/html&gt;</span></p>
+</body>
+</html>
