@@ -2,41 +2,168 @@
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Columbia Ferry — Friday Departures Summer 2025</title>
 
-  <link rel="stylesheet"
-        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <style>
-    html, body { height:100%; margin:0; }
-    #map { height:100%; width:100%; }
+    html, body { margin: 0; padding: 0; }
+    #map { height: 100vh; width: 100vw; }
 
     .panel {
-      position:absolute;
-      top:12px;
-      left:12px;
-      z-index:1000;
-      background:white;
-      padding:12px;
-      border-radius:10px;
-      box-shadow:0 4px 16px rgba(0,0,0,.2);
-      font-family:sans-serif;
-      font-size:14px;
-      min-width:300px;
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      z-index: 1000;
+      background: white;
+      padding: 12px;
+      border-radius: 10px;
+      box-shadow: 0 4px 16px rgba(0,0,0,.2);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      font-size: 14px;
+      min-width: 320px;
     }
+
+    .muted { font-size: 12px; color: #444; margin-top: 8px; line-height: 1.35; }
+    .error { color: #b00020; font-weight: 600; }
+    select { max-width: 100%; }
   </style>
 </head>
 
 <body>
-<div id="map"></div>
+  <div id="map"></div>
 
-<div class="panel">
-  <b>Select Friday:</b>
-  <select id="daySelect"></select>
-  <div id="info" style="margin-top:8px;font-size:12px;color:#333;"></div>
-</div>
+  <div class="panel">
+    <div><b>Select Friday:</b>
+      <select id="daySelect"></select>
+    </div>
+    <div id="info" class="muted">Loading…</div>
+  </div>
 
 <script>
-con
+  const DATA_URL = "./columbia_tracks_summer_fridays_2025.json";
+
+  // Initialize map immediately (even if data load fails)
+  const map = L.map("map", { zoomControl: true }).setView([48.75, -122.5], 10);
+
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: "© OpenStreetMap contributors"
+  }).addTo(map);
+
+  let trackLayer = null;
+  let DATA = null;
+
+  function setInfo(html) {
+    document.getElementById("info").innerHTML = html;
+  }
+
+  function fmt(ts) {
+    // ts is ISO string with timezone offset (from your JSON builder)
+    const d = new Date(ts);
+    return d.toLocaleString();
+  }
+
+  function clearTrack() {
+    if (trackLayer) {
+      map.removeLayer(trackLayer);
+      trackLayer = null;
+    }
+  }
+
+  function drawDay(dayObj) {
+    clearTrack();
+
+    // Departure-only filter: keep points after noon local time
+    const points = (dayObj.points || []).filter(p => {
+      const d = new Date(p.t);
+      return d.getHours() >= 12;
+    });
+
+    if (!points.length) {
+      setInfo(`<span class="error">No departure points found after 12:00 for this Friday.</span>`);
+      return;
+    }
+
+    const latlngs = points.map(p => [p.lat, p.lon]);
+
+    const line = L.polyline(latlngs, { weight: 4, color: "#0066cc" });
+
+    const markers = points.map(p => {
+      const m = L.circleMarker([p.lat, p.lon], { radius: 4, fillOpacity: 0.7 });
+      m.bindTooltip(
+        `<b>${fmt(p.t)}</b><br>
+         Speed: ${Number(p.sog).toFixed(1)} kn<br>
+         ${Number(p.lat).toFixed(5)}, ${Number(p.lon).toFixed(5)}`,
+        { sticky: true }
+      );
+      return m;
+    });
+
+    trackLayer = L.layerGroup([line, ...markers]).addTo(map);
+
+    try {
+      map.fitBounds(line.getBounds(), { padding: [20, 20] });
+    } catch (e) {
+      // If bounds fail for some reason, don't crash
+      console.error("fitBounds failed", e);
+    }
+
+    setInfo(
+      `Departure window:<br>
+       ${fmt(points[0].t)} → ${fmt(points[points.length - 1].t)}<br>
+       Points plotted: ${points.length}`
+    );
+  }
+
+  async function load() {
+    const sel = document.getElementById("daySelect");
+    sel.innerHTML = "";
+
+    try {
+      // Cache-bust to avoid GitHub Pages caching old JSON during rapid updates
+      const url = DATA_URL + "?v=" + Date.now();
+      const r = await fetch(url);
+
+      if (!r.ok) {
+        throw new Error(`Fetch failed: ${r.status} ${r.statusText} (${url})`);
+      }
+
+      const data = await r.json();
+      DATA = data;
+
+      if (!data.days || !data.days.length) {
+        throw new Error("JSON loaded, but data.days is empty or missing.");
+      }
+
+      data.days.forEach(d => {
+        const opt = document.createElement("option");
+        opt.value = d.friday_pt;
+        opt.textContent = (d.friday_pt || "").slice(0, 10);
+        sel.appendChild(opt);
+      });
+
+      sel.addEventListener("change", () => {
+        const day = DATA.days.find(x => x.friday_pt === sel.value);
+        if (day) drawDay(day);
+      });
+
+      // Load first day
+      sel.value = data.days[0].friday_pt;
+      drawDay(data.days[0]);
+
+    } catch (err) {
+      console.error(err);
+      setInfo(
+        `<div class="error">Data load error</div>
+         <div class="muted">${String(err.message || err)}</div>
+         <div class="muted">Check that <code>${DATA_URL}</code> exists at your GitHub Pages URL (case-sensitive) and is in the same folder as <code>index.html</code>.</div>`
+      );
+    }
+  }
+
+  load();
+</script>
+</body>
+</html>
