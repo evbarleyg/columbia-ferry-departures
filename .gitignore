@@ -1,0 +1,12 @@
+# Secrets — never commit the aisstream.io API key
+aisstream_key.txt
+.env
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Raw AIS captures (finalized data lands in the season JSON instead)
+captures/
