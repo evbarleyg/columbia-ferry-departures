@@ -73,6 +73,17 @@
       transform: translateY(-1px);
     }
 
+    button:disabled {
+      opacity: 0.38;
+      cursor: not-allowed;
+    }
+
+    button:disabled:hover {
+      background: var(--surface);
+      border-color: var(--line);
+      transform: none;
+    }
+
     button:focus-visible,
     input:focus-visible,
     .route-card:focus-visible {
@@ -225,6 +236,11 @@
       line-height: 1.05;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+
+    .stat .value.is-empty-val {
+      color: var(--soft);
+      font-weight: 600;
     }
 
     .controls-grid {
@@ -715,7 +731,7 @@
         <section class="module" aria-labelledby="statsTitle">
           <div class="module-title">
             <h2 id="statsTitle">Selection summary</h2>
-            <span class="status" id="status">Loading...</span>
+            <span class="status" id="status" role="status" aria-live="polite">Loading...</span>
           </div>
           <div class="stats-grid">
             <div class="stat">
@@ -774,7 +790,7 @@
           </div>
 
           <div class="legend" aria-label="Departure-time color legend">
-            <div class="bar" title="Earlier departures are cooler; later departures are warmer"></div>
+            <div class="bar" role="img" aria-label="Departure-time color scale: teal at 4 PM (earlier) through amber to red at 10 PM (later). Each route's exact departure time is also shown as text on its card." title="Earlier departures are cooler; later departures are warmer"></div>
             <div class="legend-row">
               <span>4 PM</span>
               <span>7 PM</span>
@@ -788,7 +804,7 @@
             <h2 id="spotlightTitle">Spotlight route</h2>
             <span class="hint">Click a route to inspect it</span>
           </div>
-          <div id="routeDetail" class="spotlight"></div>
+          <div id="routeDetail" class="spotlight" aria-live="polite"></div>
         </section>
 
         <section class="module" aria-labelledby="routesTitle">
@@ -802,7 +818,7 @@
       </div>
     </aside>
 
-    <main id="map" aria-label="Map of Columbia ferry routes"></main>
+    <main id="map" role="region" aria-label="Map of Columbia ferry routes. The full route data — dates, vessels, and departure times — is available as text in the Friday sailings list."></main>
   </div>
 
   <button id="openDrawerFab" class="hidden" type="button">Routes</button>
@@ -1254,12 +1270,22 @@
       const earliest = timed[0] || null;
       const latest = timed[timed.length - 1] || null;
 
+      const setStat = (el, value) => {
+        el.textContent = value ?? "—";
+        el.classList.toggle("is-empty-val", value == null);
+      };
       elStatSelected.textContent = `${routes.length}/${capturedCount}`;
-      elStatMedian.textContent = median ? fmtMinutes(median.departureMinutes) : "-";
-      elStatEarliest.textContent = earliest ? `${earliest.shortDate} ${fmtMinutes(earliest.departureMinutes)}` : "-";
-      elStatLatest.textContent = latest ? `${latest.shortDate} ${fmtMinutes(latest.departureMinutes)}` : "-";
-      elStatus.textContent = elFocusOnly.checked && activeKey ? "focus mode" : "compare mode";
+      setStat(elStatMedian, median ? fmtMinutes(median.departureMinutes) : null);
+      setStat(elStatEarliest, earliest ? `${earliest.shortDate} ${fmtMinutes(earliest.departureMinutes)}` : null);
+      setStat(elStatLatest, latest ? `${latest.shortDate} ${fmtMinutes(latest.departureMinutes)}` : null);
+      elStatus.textContent = capturedCount === 0
+        ? "season not started"
+        : (elFocusOnly.checked && activeKey ? "focus mode" : (routes.length > 1 ? "compare mode" : "browsing"));
       elRouteCount.textContent = `${routeSummaries.length} Fridays`;
+
+      // Earliest/Latest/Recent/All do nothing useful with zero captured days.
+      const noData = capturedCount === 0;
+      [btnRecent, btnAll, btnEarliest, btnLatest].forEach(b => { b.disabled = noData; });
     }
 
     function renderDetail() {
@@ -1393,7 +1419,7 @@
                 <span class="chip">${fmtDelta(route.departureMinutes)}</span>
               </div>
             </div>
-            <button class="route-focus" type="button">Focus</button>
+            <button class="route-focus" type="button" aria-label="Zoom map to the ${route.dateLabel} route">Zoom</button>
           `;
 
           const checkbox = card.querySelector("input");
