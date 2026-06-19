@@ -887,6 +887,20 @@
 
   <script>
     const JSON_PATH = "./columbia_tracks_summer_2026.json";
+    // On Vercel, /data/columbia.json rewrites to the live-data branch (refreshed by
+    // the 5-min poll Action). Locally that 404s, so we fall back to the committed file.
+    const DATA_SOURCES = ["/data/columbia.json", JSON_PATH];
+    async function loadData() {
+      let lastErr;
+      for (const url of DATA_SOURCES) {
+        try {
+          const r = await fetch(url, { cache: "no-store" });
+          if (r.ok) return await r.json();
+          lastErr = new Error(`${url} -> ${r.status}`);
+        } catch (e) { lastErr = e; }
+      }
+      throw lastErr || new Error("no data source");
+    }
     const TZ_LABEL = "PT";
     const SIX_PM_MINUTES = 18 * 60;
     const RECENT_COUNT = 4;
@@ -1541,9 +1555,7 @@
     async function init() {
       try {
         configureMobileUI();
-        const resp = await fetch(JSON_PATH, { cache: "no-store" });
-        if (!resp.ok) throw new Error(`fetch failed: ${resp.status}`);
-        DATA = await resp.json();
+        DATA = await loadData();
 
         routeSummaries = buildRouteSummaries(DATA.days);
         routeByKey = new Map(routeSummaries.map(route => [route.key, route]));

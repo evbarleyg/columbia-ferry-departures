@@ -10,3 +10,6 @@ __pycache__/
 
 # Raw AIS captures (finalized data lands in the season JSON instead)
 captures/
+
+# Runtime data dir for the poll Action (lives on the live-data branch)
+data/
