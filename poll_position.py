@@ -59,7 +59,10 @@ def append_inbox(season: dict, point: dict) -> bool:
     friday = point["t"][:10]
     for day in season["days"]:
         if day["friday_pt"].startswith(friday):
-            day["points"].append({k: point[k] for k in ("t", "lat", "lon", "sog", "name", "call")})
+            pts = day["points"]
+            if pts and pts[-1]["t"] == point["t"]:
+                return True  # same report seen twice across runs — don't duplicate
+            pts.append({k: point[k] for k in ("t", "lat", "lon", "sog", "name", "call")})
             day["status"] = "captured"
             return True
     return False
