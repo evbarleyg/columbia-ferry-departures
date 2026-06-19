@@ -880,21 +880,38 @@
       return `rgb(${r},${g},${b2})`;
     }
 
+    // All sailing times are Pacific. Derive wall-clock parts in PT regardless of
+    // the VIEWER's timezone — otherwise a non-Pacific visitor sees wrong times,
+    // off-by-a-day dates, and (worst) the >=14:00 departure-window gate strips the
+    // real departure. Formatters are built once (per-call construction is costly).
+    const PT_TZ = "America/Los_Angeles";
+    const ptTimeFmt = new Intl.DateTimeFormat("en-US", {
+      timeZone: PT_TZ, hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit"
+    });
+    const ptDateFmt = new Intl.DateTimeFormat("en-US", {
+      timeZone: PT_TZ, month: "short", day: "numeric"
+    });
+
+    function ptParts(d) {
+      const parts = {};
+      for (const p of ptTimeFmt.formatToParts(d)) parts[p.type] = p.value;
+      return { h: +parts.hour % 24, m: +parts.minute, s: +parts.second }; // "24" -> 0 at midnight
+    }
+
     function parseISO(s) {
       const d = new Date(s);
       return isNaN(d.getTime()) ? null : d;
     }
 
     function minutesAfterMidnight(d) {
-      return d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60;
+      const { h, m, s } = ptParts(d);
+      return h * 60 + m + s / 60;
     }
 
     function fmtTime(d) {
       if (!d) return "n/a";
-      const hh = String(d.getHours()).padStart(2, "0");
-      const mm = String(d.getMinutes()).padStart(2, "0");
-      const ss = String(d.getSeconds()).padStart(2, "0");
-      return `${hh}:${mm}:${ss}`;
+      const { h, m, s } = ptParts(d);
+      return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
     }
 
     function fmtMinutes(totalMinutes) {
@@ -911,7 +928,7 @@
     function fmtShortDate(fridayPtStr) {
       const d = parseISO(fridayPtStr.replace(" ", "T"));
       if (!d) return fmtDateKey(fridayPtStr);
-      return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      return ptDateFmt.format(d);
     }
 
     function fmtDelta(minutes) {
@@ -1021,18 +1038,16 @@
       if (!routeByKey.has(key)) return;
       activeKey = key;
       if (!selected.has(key)) selected.add(key);
-      render();
+      render(); // render() already calls renderDetail()
       buildList();
-      renderDetail();
       if (shouldFit) fitToRoute(key);
     }
 
     function selectKeys(keys) {
       selected = new Set(keys);
       chooseActiveRoute();
-      render();
+      render(); // render() already calls renderDetail()
       buildList();
-      renderDetail();
       fitToSelection();
     }
 
@@ -1258,7 +1273,17 @@
       for (const route of routes) {
         if (route.points.length) bounds.push(L.latLngBounds(route.points.map(p => [p.lat, p.lon])));
       }
-      if (!bounds.length) return;
+      if (!bounds.length) {
+        // Nothing to frame (None selected, or no captured days yet) — fall back to
+        // the terminal geofence so "Fit" still does something sensible.
+        if (DATA && DATA.meta) {
+          map.fitBounds(
+            [[DATA.meta.lat_min, DATA.meta.lon_min], [DATA.meta.lat_max, DATA.meta.lon_max]],
+            { paddingTopLeft: isMobile() ? [16, 16] : [24, 24], paddingBottomRight: isMobile() ? [16, 120] : [24, 24] }
+          );
+        }
+        return;
+      }
 
       let combined = bounds[0];
       for (let i = 1; i < bounds.length; i++) combined = combined.extend(bounds[i]);
@@ -1383,7 +1408,7 @@
     fit2Btn.addEventListener("click", () => fitToSelection());
     window.addEventListener("resize", configureMobileUI);
 
-    elShowGeofence.addEventListener("change", () => render());
+    elShowGeofence.addEventListener("change", updateGeofenceVisibility);
     elShowPoints.addEventListener("change", () => render());
     elFocusOnly.addEventListener("change", () => {
       render();
