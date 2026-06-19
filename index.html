@@ -427,6 +427,42 @@
       white-space: nowrap;
     }
 
+    .chip.vessel {
+      font-weight: 850;
+      letter-spacing: 0.04em;
+    }
+
+    .chip.vessel-primary {
+      color: #eafff8;
+      border-color: rgba(67, 214, 182, 0.5);
+      background: rgba(67, 214, 182, 0.14);
+    }
+
+    .chip.vessel-relief {
+      color: #ffe9c2;
+      border-color: rgba(244, 191, 71, 0.55);
+      background: rgba(244, 191, 71, 0.14);
+    }
+
+    .route-card.is-empty {
+      cursor: default;
+      opacity: 0.6;
+      grid-template-columns: auto 1fr;
+    }
+
+    .route-card.is-empty:hover {
+      border-color: var(--line);
+      background: var(--panel);
+      transform: none;
+    }
+
+    .route-dot {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      border: 1px dashed var(--line-strong);
+    }
+
     .route-focus {
       min-height: 32px;
       padding: 6px 9px;
@@ -630,9 +666,9 @@
       <div class="panel-shell">
         <header class="hero">
           <p class="eyebrow">Bellingham terminal AIS</p>
-          <h1>Columbia Friday departures</h1>
+          <h1>Columbia Friday departures · 2026</h1>
           <p class="lede">
-            Compare summer 2025 Friday tracks, spotlight a sailing, and read departure timing directly from the route.
+            Summer 2026 Bellingham mainline Fridays — the Columbia, with the Kennicott relieving in early June. Tracks fill in as each Friday sails; spotlight one to read its departure off the route.
           </p>
         </header>
 
@@ -700,9 +736,9 @@
           <div class="legend" aria-label="Departure-time color legend">
             <div class="bar" title="Earlier departures are cooler; later departures are warmer"></div>
             <div class="legend-row">
-              <span>before 6 PM</span>
-              <span>6 PM</span>
-              <span>after 7 PM</span>
+              <span>4 PM</span>
+              <span>7 PM</span>
+              <span>10 PM</span>
             </div>
           </div>
         </section>
@@ -737,7 +773,7 @@
   ></script>
 
   <script>
-    const JSON_PATH = "./columbia_tracks_summer_fridays_2025.json";
+    const JSON_PATH = "./columbia_tracks_summer_2026.json";
     const TZ_LABEL = "PT";
     const SIX_PM_MINUTES = 18 * 60;
     const RECENT_COUNT = 4;
@@ -817,7 +853,7 @@
       if (depMinutes == null) return "rgb(190,198,192)";
 
       const min = 16 * 60;
-      const max = 20.5 * 60;
+      const max = 22 * 60;
       const t = clamp01((depMinutes - min) / (max - min));
       const stops = [
         { t: 0.00, c: [67, 214, 182] },
@@ -912,18 +948,22 @@
     }
 
     function detectDeparture(points) {
+      // The northbound departure is the LAST sustained fast run of the day, so an
+      // earlier arrival approach (on days the vessel arrives then departs — e.g.
+      // 2026-06-19, arr 4:45p + dep 9:45p) can't be mislabeled as the departure.
       const fastMin = 8.0;
       const sustainN = 3;
       let run = 0;
+      let departure = null;
       for (let i = 0; i < points.length; i++) {
         if ((+points[i].sog) >= fastMin) {
           run++;
-          if (run >= sustainN) return points[i - (sustainN - 1)];
+          if (run === sustainN) departure = points[i - (sustainN - 1)];
         } else {
           run = 0;
         }
       }
-      return null;
+      return departure;
     }
 
     function buildRouteSummaries(days) {
@@ -943,6 +983,9 @@
         return {
           index,
           key,
+          vessel: day.vessel,
+          status: day.status,
+          captured: day.status === "captured" && points.length >= 2,
           dateLabel: fmtDateKey(key),
           shortDate: fmtShortDate(key),
           points,
@@ -1148,18 +1191,19 @@
     }
 
     function renderStats() {
+      const capturedCount = routeSummaries.filter(route => route.captured).length;
       const routes = routeSummaries.filter(route => selected.has(route.key));
       const timed = routes.filter(route => route.departureMinutes != null).sort((a, b) => a.departureMinutes - b.departureMinutes);
       const median = timed.length ? timed[Math.floor((timed.length - 1) / 2)] : null;
       const earliest = timed[0] || null;
       const latest = timed[timed.length - 1] || null;
 
-      elStatSelected.textContent = `${routes.length}/${routeSummaries.length}`;
+      elStatSelected.textContent = `${routes.length}/${capturedCount}`;
       elStatMedian.textContent = median ? fmtMinutes(median.departureMinutes) : "-";
       elStatEarliest.textContent = earliest ? `${earliest.shortDate} ${fmtMinutes(earliest.departureMinutes)}` : "-";
       elStatLatest.textContent = latest ? `${latest.shortDate} ${fmtMinutes(latest.departureMinutes)}` : "-";
       elStatus.textContent = elFocusOnly.checked && activeKey ? "focus mode" : "compare mode";
-      elRouteCount.textContent = `${routeSummaries.length} routes`;
+      elRouteCount.textContent = `${routeSummaries.length} Fridays`;
     }
 
     function renderDetail() {
@@ -1174,7 +1218,7 @@
         <div class="spotlight-head">
           <div>
             <p class="spotlight-date">${route.dateLabel}</p>
-            <div class="spotlight-time">Dep. ${fmtTime(route.departureTime)} ${TZ_LABEL} · ${fmtDelta(route.departureMinutes)}</div>
+            <div class="spotlight-time">${route.vessel} · Dep. ${fmtTime(route.departureTime)} ${TZ_LABEL} · ${fmtDelta(route.departureMinutes)}</div>
           </div>
           <span class="swatch" style="background:${route.color};"></span>
         </div>
@@ -1237,55 +1281,72 @@
     function buildList() {
       elList.innerHTML = "";
       for (const route of routeSummaries) {
+        const vesselClass = route.vessel === "COLUMBIA" ? "vessel-primary" : "vessel-relief";
         const card = document.createElement("div");
-        card.className = [
-          "route-card",
-          selected.has(route.key) ? "is-selected" : "",
-          activeKey === route.key ? "is-active" : ""
-        ].filter(Boolean).join(" ");
-        card.tabIndex = 0;
-        card.style.setProperty("--active-color", route.color);
-        card.setAttribute("role", "button");
-        card.setAttribute("aria-label", `Inspect route for ${route.dateLabel}`);
 
-        card.innerHTML = `
-          <input type="checkbox" ${selected.has(route.key) ? "checked" : ""} aria-label="Show route for ${route.dateLabel}" />
-          <div class="route-main">
-            <div class="route-date">${route.dateLabel}</div>
-            <div class="route-meta">
-              <span class="chip" style="border-color:${route.color};">Dep. ${fmtTime(route.departureTime).slice(0, 5)}</span>
-              <span class="chip">${fmtDelta(route.departureMinutes)}</span>
-              <span class="chip">${route.distanceNm.toFixed(1)} nm</span>
+        if (route.captured) {
+          card.className = [
+            "route-card",
+            selected.has(route.key) ? "is-selected" : "",
+            activeKey === route.key ? "is-active" : ""
+          ].filter(Boolean).join(" ");
+          card.tabIndex = 0;
+          card.style.setProperty("--active-color", route.color);
+          card.setAttribute("role", "button");
+          card.setAttribute("aria-label", `Inspect ${route.vessel} sailing on ${route.dateLabel}`);
+
+          card.innerHTML = `
+            <input type="checkbox" ${selected.has(route.key) ? "checked" : ""} aria-label="Show ${route.vessel} route for ${route.dateLabel}" />
+            <div class="route-main">
+              <div class="route-date">${route.dateLabel}</div>
+              <div class="route-meta">
+                <span class="chip vessel ${vesselClass}">${route.vessel}</span>
+                <span class="chip" style="border-color:${route.color};">Dep. ${fmtTime(route.departureTime).slice(0, 5)}</span>
+                <span class="chip">${fmtDelta(route.departureMinutes)}</span>
+              </div>
             </div>
-          </div>
-          <button class="route-focus" type="button">Focus</button>
-        `;
+            <button class="route-focus" type="button">Focus</button>
+          `;
 
-        const checkbox = card.querySelector("input");
-        const focusButton = card.querySelector("button");
+          const checkbox = card.querySelector("input");
+          const focusButton = card.querySelector("button");
 
-        checkbox.addEventListener("click", event => event.stopPropagation());
-        checkbox.addEventListener("change", () => {
-          if (checkbox.checked) selected.add(route.key);
-          else selected.delete(route.key);
-          if (checkbox.checked) activeKey = route.key;
-          chooseActiveRoute();
-          render();
-          buildList();
-        });
+          checkbox.addEventListener("click", event => event.stopPropagation());
+          checkbox.addEventListener("change", () => {
+            if (checkbox.checked) selected.add(route.key);
+            else selected.delete(route.key);
+            if (checkbox.checked) activeKey = route.key;
+            chooseActiveRoute();
+            render();
+            buildList();
+          });
 
-        focusButton.addEventListener("click", event => {
-          event.stopPropagation();
-          setActiveRoute(route.key, true);
-        });
+          focusButton.addEventListener("click", event => {
+            event.stopPropagation();
+            setActiveRoute(route.key, true);
+          });
 
-        card.addEventListener("click", () => setActiveRoute(route.key));
-        card.addEventListener("keydown", event => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            setActiveRoute(route.key);
-          }
-        });
+          card.addEventListener("click", () => setActiveRoute(route.key));
+          card.addEventListener("keydown", event => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              setActiveRoute(route.key);
+            }
+          });
+        } else {
+          const label = route.status === "pending" ? "data pending · NOAA 2026" : "scheduled";
+          card.className = "route-card is-empty";
+          card.innerHTML = `
+            <span class="route-dot" aria-hidden="true"></span>
+            <div class="route-main">
+              <div class="route-date">${route.dateLabel}</div>
+              <div class="route-meta">
+                <span class="chip vessel ${vesselClass}">${route.vessel}</span>
+                <span class="chip">${label}</span>
+              </div>
+            </div>
+          `;
+        }
 
         elList.appendChild(card);
       }
@@ -1301,7 +1362,8 @@
         routeSummaries = buildRouteSummaries(DATA.days);
         routeByKey = new Map(routeSummaries.map(route => [route.key, route]));
 
-        const recent = routeSummaries.slice(Math.max(0, routeSummaries.length - RECENT_COUNT));
+        const capturedRoutes = routeSummaries.filter(route => route.captured);
+        const recent = capturedRoutes.slice(Math.max(0, capturedRoutes.length - RECENT_COUNT));
         selected = new Set(recent.map(route => route.key));
         activeKey = recent.length ? recent[recent.length - 1].key : null;
 
@@ -1330,10 +1392,11 @@
     elShowLabels.addEventListener("change", () => render());
 
     btnRecent.addEventListener("click", () => {
-      const recent = routeSummaries.slice(Math.max(0, routeSummaries.length - RECENT_COUNT));
+      const capturedRoutes = routeSummaries.filter(route => route.captured);
+      const recent = capturedRoutes.slice(Math.max(0, capturedRoutes.length - RECENT_COUNT));
       selectKeys(recent.map(route => route.key));
     });
-    btnAll.addEventListener("click", () => selectKeys(routeSummaries.map(route => route.key)));
+    btnAll.addEventListener("click", () => selectKeys(routeSummaries.filter(route => route.captured).map(route => route.key)));
     btnNone.addEventListener("click", () => selectKeys([]));
     btnFit.addEventListener("click", () => fitToSelection());
     btnEarliest.addEventListener("click", () => {
