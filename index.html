@@ -642,10 +642,16 @@
         border-top-right-radius: 18px;
         transform: translateY(calc(var(--drawerMax) - var(--drawerPeek)));
         transition: transform 180ms ease-out;
+        overscroll-behavior: contain;
       }
 
       .panel.open {
         transform: translateY(0);
+      }
+
+      /* "Close" on a closed/peeked drawer is contradictory — show it only when open. */
+      .panel:not(.open) #closeDrawer {
+        visibility: hidden;
       }
 
       .drawer-handle {
@@ -677,9 +683,16 @@
       }
 
       .drawer-btn {
-        min-height: 34px;
-        padding: 7px 9px;
+        min-height: 44px;
+        padding: 9px 12px;
         border-radius: 999px;
+      }
+
+      /* Comfortable touch targets (>=44px) on phones. */
+      button,
+      .toggle,
+      .route-focus {
+        min-height: 44px;
       }
 
       .stats-grid,
@@ -689,8 +702,11 @@
 
       .route-list {
         max-height: 260px;
+        overscroll-behavior: contain;
       }
 
+      /* Left side is clear once "Close" is hidden in the peek, so the FAB lives
+         here without overlapping the handle's Fit button on the right. */
       #openDrawerFab {
         position: fixed;
         left: 12px;
@@ -699,7 +715,8 @@
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        min-height: 42px;
+        min-height: 44px;
+        min-width: 44px;
         border-radius: 999px;
         background: rgba(18, 22, 24, 0.94);
         box-shadow: var(--shadow);
@@ -860,7 +877,7 @@
     <main id="map" role="region" aria-label="Map of Columbia ferry routes. The full route data — dates, vessels, and departure times — is available as text in the Friday sailings list."></main>
   </div>
 
-  <button id="openDrawerFab" class="hidden" type="button">Routes</button>
+  <button id="openDrawerFab" class="hidden" type="button" aria-controls="panel" aria-expanded="false">Routes</button>
 
   <script
     src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
@@ -928,15 +945,19 @@
       if (!isMobile()) return;
       panel.classList.toggle("open", !!open);
       openFab.classList.toggle("hidden", !!open);
-      setTimeout(() => map.invalidateSize(), 190);
+      openFab.setAttribute("aria-expanded", String(!!open));
+      setTimeout(() => map.invalidateSize(), 220); // clear the 180ms drawer transition
     }
 
     function configureMobileUI() {
       if (isMobile()) {
-        openFab.classList.toggle("hidden", panel.classList.contains("open"));
+        const open = panel.classList.contains("open");
+        openFab.classList.toggle("hidden", open);
+        openFab.setAttribute("aria-expanded", String(open));
       } else {
         panel.classList.remove("open");
         openFab.classList.add("hidden");
+        openFab.setAttribute("aria-expanded", "false");
       }
       setTimeout(() => map.invalidateSize(), 100);
     }
@@ -1396,6 +1417,15 @@
       renderDetail();
     }
 
+    function fitPadding() {
+      if (!isMobile()) return { paddingTopLeft: [24, 24], paddingBottomRight: [24, 24] };
+      // Reserve the area the drawer actually obscures: its open height, else the peek.
+      const bottom = panel.classList.contains("open")
+        ? Math.round(panel.getBoundingClientRect().height) + 16
+        : 84;
+      return { paddingTopLeft: [16, 16], paddingBottomRight: [16, bottom] };
+    }
+
     function fitBoundsForRoutes(routes) {
       const bounds = [];
       for (const route of routes) {
@@ -1407,7 +1437,7 @@
         if (DATA && DATA.meta) {
           map.fitBounds(
             [[DATA.meta.lat_min, DATA.meta.lon_min], [DATA.meta.lat_max, DATA.meta.lon_max]],
-            { paddingTopLeft: isMobile() ? [16, 16] : [24, 24], paddingBottomRight: isMobile() ? [16, 120] : [24, 24] }
+            fitPadding()
           );
         }
         return;
@@ -1415,10 +1445,7 @@
 
       let combined = bounds[0];
       for (let i = 1; i < bounds.length; i++) combined = combined.extend(bounds[i]);
-      map.fitBounds(combined.pad(0.16), {
-        paddingTopLeft: isMobile() ? [16, 16] : [24, 24],
-        paddingBottomRight: isMobile() ? [16, 120] : [24, 24]
-      });
+      map.fitBounds(combined.pad(0.16), fitPadding());
     }
 
     function fitToSelection() {
