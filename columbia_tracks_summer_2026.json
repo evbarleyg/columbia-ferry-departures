@@ -1,0 +1,105 @@
+{
+  "meta": {
+    "season": 2026,
+    "vessels": [
+      {
+        "name": "COLUMBIA",
+        "mmsi": 367144000,
+        "call": "WYR2092",
+        "role": "primary"
+      },
+      {
+        "name": "KENNICOTT",
+        "mmsi": null,
+        "call": null,
+        "role": "relief"
+      }
+    ],
+    "lat_min": 48.68,
+    "lat_max": 48.78,
+    "lon_min": -122.62,
+    "lon_max": -122.45,
+    "timezone": "America/Los_Angeles",
+    "note": "AIS points for the Bellingham mainline Friday slot, summer 2026; downsampled ~1/min."
+  },
+  "days": [
+    {
+      "friday_pt": "2026-06-05 00:00:00-07:00",
+      "vessel": "KENNICOTT",
+      "status": "pending",
+      "points": []
+    },
+    {
+      "friday_pt": "2026-06-12 00:00:00-07:00",
+      "vessel": "KENNICOTT",
+      "status": "pending",
+      "points": []
+    },
+    {
+      "friday_pt": "2026-06-19 00:00:00-07:00",
+      "vessel": "COLUMBIA",
+      "status": "scheduled",
+      "points": []
+    },
+    {
+      "friday_pt": "2026-06-26 00:00:00-07:00",
+      "vessel": "COLUMBIA",
+      "status": "scheduled",
+      "points": []
+    },
+    {
+      "friday_pt": "2026-07-03 00:00:00-07:00",
+      "vessel": "COLUMBIA",
+      "status": "scheduled",
+      "points": []
+    },
+    {
+      "friday_pt": "2026-07-10 00:00:00-07:00",
+      "vessel": "COLUMBIA",
+      "status": "scheduled",
+      "points": []
+    },
+    {
+      "friday_pt": "2026-07-17 00:00:00-07:00",
+      "vessel": "COLUMBIA",
+      "status": "scheduled",
+      "points": []
+    },
+    {
+      "friday_pt": "2026-07-24 00:00:00-07:00",
+      "vessel": "COLUMBIA",
+      "status": "scheduled",
+      "points": []
+    },
+    {
+      "friday_pt": "2026-07-31 00:00:00-07:00",
+      "vessel": "COLUMBIA",
+      "status": "scheduled",
+      "points": []
+    },
+    {
+      "friday_pt": "2026-08-07 00:00:00-07:00",
+      "vessel": "COLUMBIA",
+      "status": "scheduled",
+      "points": []
+    },
+    {
+      "friday_pt": "2026-08-14 00:00:00-07:00",
+      "vessel": "COLUMBIA",
+      "status": "scheduled",
+      "points": []
+    },
+    {
+      "friday_pt": "2026-08-21 00:00:00-07:00",
+      "vessel": "COLUMBIA",
+      "status": "scheduled",
+      "points": []
+    },
+    {
+      "friday_pt": "2026-08-28 00:00:00-07:00",
+      "vessel": "COLUMBIA",
+      "status": "scheduled",
+      "points": []
+    }
+  ]
+}
