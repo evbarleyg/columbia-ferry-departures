@@ -446,21 +446,61 @@
 
     .route-card.is-empty {
       cursor: default;
-      opacity: 0.6;
       grid-template-columns: auto 1fr;
+      background: rgba(255, 255, 255, 0.025);
+    }
+
+    .route-card.is-empty .route-date {
+      color: var(--muted);
+      font-weight: 750;
     }
 
     .route-card.is-empty:hover {
       border-color: var(--line);
-      background: var(--panel);
+      background: rgba(255, 255, 255, 0.025);
       transform: none;
     }
 
+    /* Vessel-tinted accent bar so COLUMBIA vs KENNICOTT scans down the rail. */
     .route-dot {
-      width: 18px;
-      height: 18px;
-      border-radius: 50%;
-      border: 1px dashed var(--line-strong);
+      width: 6px;
+      height: 30px;
+      border-radius: 3px;
+      background: var(--line-strong);
+    }
+
+    .route-dot.vessel-primary { background: rgba(67, 214, 182, 0.55); }
+    .route-dot.vessel-relief { background: rgba(244, 191, 71, 0.6); }
+
+    .chip.is-pending {
+      color: #ffe3b3;
+      border-color: rgba(244, 191, 71, 0.4);
+      background: rgba(244, 191, 71, 0.1);
+    }
+
+    .chip.is-scheduled {
+      color: var(--muted);
+    }
+
+    .season-empty {
+      display: grid;
+      gap: 11px;
+    }
+
+    .season-empty-lede {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12.5px;
+      line-height: 1.5;
+    }
+
+    .season-empty-lede strong { color: var(--text); }
+
+    .list-note {
+      margin: 0 0 9px;
+      color: var(--soft);
+      font-size: 11px;
+      line-height: 1.4;
     }
 
     .route-focus {
@@ -756,6 +796,7 @@
             <h2 id="routesTitle">Friday sailings</h2>
             <span class="hint" id="routeCount">-</span>
           </div>
+          <p class="list-note">Greyed Fridays haven't sailed yet — each lights up once captured. Check to plot · click to spotlight.</p>
           <div class="route-list" id="dayList"></div>
         </section>
       </div>
@@ -1225,6 +1266,28 @@
       chooseActiveRoute();
       const route = activeKey ? routeByKey.get(activeKey) : null;
       if (!route) {
+        const capturedCount = routeSummaries.filter(r => r.captured).length;
+        if (capturedCount === 0) {
+          const next = routeSummaries.find(r => r.status === "scheduled")
+            || routeSummaries.find(r => r.status === "pending");
+          const nextLabel = next ? next.shortDate : "soon";
+          const pendingCount = routeSummaries.filter(r => r.status === "pending").length;
+          elRouteDetail.innerHTML = `
+            <div class="season-empty">
+              <div class="spotlight-head">
+                <div>
+                  <p class="spotlight-date">Season hasn't started</p>
+                  <div class="spotlight-time">0 of ${routeSummaries.length} Fridays tracked</div>
+                </div>
+              </div>
+              <p class="season-empty-lede">Each Friday's card lights up after the ferry sails and its track is captured. The first track lands after the <strong>${nextLabel}</strong> departure.</p>
+              <div class="detail-grid">
+                <div class="detail"><span>Next sailing</span><strong>${nextLabel}</strong></div>
+                <div class="detail"><span>Awaiting backfill</span><strong>${pendingCount} Fridays</strong></div>
+              </div>
+            </div>`;
+          return;
+        }
         elRouteDetail.innerHTML = `<div class="empty">Select a Friday route to see its detected departure, visible track length, and speed profile.</div>`;
         return;
       }
@@ -1359,15 +1422,21 @@
             }
           });
         } else {
-          const label = route.status === "pending" ? "data pending · NOAA 2026" : "scheduled";
+          const pending = route.status === "pending";
+          const label = pending ? "Sailed · awaiting NOAA" : "Upcoming";
+          const chipClass = pending ? "is-pending" : "is-scheduled";
           card.className = "route-card is-empty";
+          card.setAttribute("aria-disabled", "true");
+          card.title = pending
+            ? `${route.vessel} sailed ${route.dateLabel}; track backfills from NOAA's 2026 archive`
+            : `${route.vessel} scheduled for ${route.dateLabel}; lights up once its track is captured`;
           card.innerHTML = `
-            <span class="route-dot" aria-hidden="true"></span>
+            <span class="route-dot ${vesselClass}" aria-hidden="true"></span>
             <div class="route-main">
               <div class="route-date">${route.dateLabel}</div>
               <div class="route-meta">
                 <span class="chip vessel ${vesselClass}">${route.vessel}</span>
-                <span class="chip">${label}</span>
+                <span class="chip ${chipClass}">${label}</span>
               </div>
             </div>
           `;
