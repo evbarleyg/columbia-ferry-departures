@@ -1,0 +1,62 @@
+name: Poll Columbia position
+
+# Every ~5 minutes: one quick aisstream locate, update the live position + trail,
+# append in-geofence points to the season path, and force-push both to the rolling
+# `live-data` branch (a single commit — no history bloat). The Vercel site reads
+# these from live-data's raw URLs. The aisstream key stays a GitHub secret.
+#
+# PREREQUISITES (repo secrets): AISSTREAM_API_KEY (required), NTFY_TOPIC (optional,
+# for arrival pings via ntfy.sh).
+#
+# NOTE: GitHub's scheduled crons are best-effort — `*/5` can lag or skip a tick
+# under load. Fine at this grain; not a hard 5-minute heartbeat.
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: columbia-poll
+  cancel-in-progress: false
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: pip install -r requirements.txt
+
+      - name: Seed data dir from live-data (carry prior state)
+        run: |
+          mkdir -p data
+          git fetch origin live-data --depth=1 2>/dev/null || true
+          git show origin/live-data:live_position.json > data/live_position.json 2>/dev/null || true
+          git show origin/live-data:columbia_tracks_summer_2026.json > data/columbia_tracks_summer_2026.json 2>/dev/null || true
+
+      - name: Poll current position
+        env:
+          AISSTREAM_API_KEY: ${{ secrets.AISSTREAM_API_KEY }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: python poll_position.py --data-dir data
+
+      - name: Publish to live-data (rolling single commit)
+        run: |
+          cd data
+          git init -q
+          git checkout -q -b live-data
+          git config user.name "columbia-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add live_position.json columbia_tracks_summer_2026.json
+          git commit -q -m "position $(date -u +%FT%TZ)" || { echo "nothing to publish"; exit 0; }
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" live-data

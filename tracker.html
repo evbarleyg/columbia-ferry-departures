@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Columbia · live</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <style>
+    :root { color-scheme: dark; --bg:#101316; --panel:rgba(18,22,24,.94); --text:#f4f0e8;
+      --muted:#b8c2bd; --soft:#899792; --line:rgba(255,255,255,.14); --teal:#43d6b6;
+      --amber:#f4bf47; --rose:#ee7b7b; --shadow:0 18px 55px rgba(0,0,0,.4); }
+    * { box-sizing:border-box; }
+    html,body { height:100%; margin:0; background:var(--bg); color:var(--text);
+      font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+    #map { position:absolute; inset:0; background:#9fc7cf; }
+    .card { position:absolute; top:14px; left:14px; z-index:800; width:min(330px,calc(100vw - 28px));
+      padding:15px 16px; border:1px solid var(--line); border-radius:14px;
+      background:linear-gradient(180deg,rgba(26,34,34,.97),rgba(13,15,17,.96)),var(--panel);
+      box-shadow:var(--shadow); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); }
+    .eyebrow { margin:0 0 6px; color:var(--teal); font-size:11px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
+    h1 { margin:0; font-size:20px; }
+    .conn { display:inline-flex; align-items:center; gap:7px; margin-top:9px; font-size:12px; font-weight:700; color:var(--muted); }
+    .dot { width:9px; height:9px; border-radius:50%; background:var(--soft); }
+    .dot.live { background:var(--teal); animation:pulse 1.8s infinite; }
+    .dot.warn { background:var(--amber); } .dot.err { background:var(--rose); }
+    @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(67,214,182,.5);} 70%{box-shadow:0 0 0 8px rgba(67,214,182,0);} 100%{box-shadow:0 0 0 0 rgba(67,214,182,0);} }
+    .grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:13px; }
+    .cell { padding:9px 10px; border:1px solid var(--line); border-radius:10px; background:rgba(255,255,255,.05); }
+    .cell.wide { grid-column:1/-1; }
+    .cell .k { display:block; color:var(--soft); font-size:10px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+    .cell .v { display:block; margin-top:4px; font-size:16px; font-weight:800; font-variant-numeric:tabular-nums; }
+    .cell .v.mono { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:13.5px; }
+    .age { margin-top:11px; color:var(--soft); font-size:11.5px; }
+    .ctl { display:flex; gap:8px; margin-top:12px; }
+    button { flex:1; appearance:none; border:1px solid var(--line); border-radius:9px; background:rgba(255,255,255,.07);
+      color:var(--text); min-height:38px; padding:8px 10px; cursor:pointer; font:inherit; font-size:13px; font-weight:700; }
+    button.on { border-color:rgba(67,214,182,.5); background:rgba(67,214,182,.16); color:#eafff8; }
+    .vessel-marker { display:grid; place-items:center; width:34px; height:34px; filter:drop-shadow(0 4px 8px rgba(0,0,0,.5)); transition:transform .5s ease; }
+    .leaflet-control-zoom a { background:rgba(18,22,24,.94); color:var(--text); border:1px solid var(--line); }
+    .leaflet-control-attribution { background:rgba(17,21,22,.82)!important; color:var(--soft)!important; }
+    .leaflet-control-attribution a { color:var(--muted)!important; }
+  </style>
+</head>
+<body>
+  <main id="map"></main>
+  <section class="card">
+    <p class="eyebrow">Alaska Marine Highway · live</p>
+    <h1>MV Columbia</h1>
+    <div class="conn"><span class="dot" id="dot"></span><span id="connText">Loading…</span></div>
+    <div class="grid" id="readout" hidden>
+      <div class="cell wide"><span class="k">Position</span><span class="v mono" id="pos">—</span></div>
+      <div class="cell"><span class="k">Speed</span><span class="v" id="sog">—</span></div>
+      <div class="cell"><span class="k">Status</span><span class="v" id="box">—</span></div>
+    </div>
+    <div class="age" id="age" hidden></div>
+    <div class="ctl">
+      <button id="followBtn" class="on" type="button">Following</button>
+      <button id="trailBtn" class="on" type="button">Trail</button>
+    </div>
+  </section>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script>
+    const DATA_URL = "/data/live_position.json";   // Vercel rewrite -> live-data raw
+    const POLL_MS = 60000;
+    const el = id => document.getElementById(id);
+    let follow = true, showTrail = true, marker = null, lastT = null;
+
+    const map = L.map("map", { zoomControl: true, preferCanvas: true }).setView([49.0, -123.4], 7);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 18, attribution: "&copy; OpenStreetMap contributors" }).addTo(map);
+    const trailLine = L.polyline([], { color: "#43d6b6", weight: 3, opacity: 0.7 }).addTo(map);
+
+    function bearing(a, b) {
+      const toR = d => d * Math.PI / 180, toD = r => r * 180 / Math.PI;
+      const dLon = toR(b[1] - a[1]);
+      const y = Math.sin(dLon) * Math.cos(toR(b[0]));
+      const x = Math.cos(toR(a[0])) * Math.sin(toR(b[0])) - Math.sin(toR(a[0])) * Math.cos(toR(b[0])) * Math.cos(dLon);
+      return (toD(Math.atan2(y, x)) + 360) % 360;
+    }
+    function vesselIcon(course) {
+      return L.divIcon({ className: "", iconSize: [34, 34], iconAnchor: [17, 17],
+        html: `<div class="vessel-marker" style="transform:rotate(${course}deg)">
+          <svg width="30" height="30" viewBox="0 0 24 24"><path d="M12 2 L19 21 L12 17 L5 21 Z"
+            fill="#43d6b6" stroke="#0c0f10" stroke-width="1.4" stroke-linejoin="round"/></svg></div>` });
+    }
+    function setConn(s, t) { el("dot").className = "dot" + (s ? " " + s : ""); el("connText").textContent = t; }
+    function fmtAge(ms) { const s = Math.round(ms/1000); if (s<90) return "just now";
+      const m = Math.floor(s/60); return m<60 ? `${m} min ago` : `${Math.floor(m/60)}h ${m%60}m ago`; }
+
+    function render(d) {
+      const p = d && d.latest;
+      if (!p) { setConn("warn", "Waiting for first fix…"); return; }
+      el("readout").hidden = false;
+      el("pos").textContent = `${p.lat.toFixed(4)}, ${p.lon.toFixed(4)}`;
+      el("sog").textContent = (p.sog != null && p.sog < 102.3) ? `${p.sog.toFixed(1)} kn` : "—";
+      el("box").textContent = d.in_box ? "In Bellingham" : "En route";
+
+      const latlng = [p.lat, p.lon];
+      const trail = (d.trail || []).map(c => [c[0], c[1]]);
+      const course = trail.length > 1 ? bearing(trail[trail.length - 2], latlng) : 0;
+      if (!marker) marker = L.marker(latlng, { icon: vesselIcon(course) }).addTo(map);
+      else { marker.setLatLng(latlng); marker.setIcon(vesselIcon(course)); }
+      trailLine.setLatLngs(showTrail ? trail : []);
+      if (follow && p.t !== lastT) map.panTo(latlng, { animate: true, duration: 0.5 });
+      lastT = p.t;
+
+      const ms = Date.now() - new Date(p.t).getTime();
+      el("age").hidden = false;
+      el("age").textContent = `Updated ${fmtAge(ms)} · refreshes every ~5 min`;
+      setConn(ms < 12 * 60000 ? "live" : "warn", ms < 12 * 60000 ? "Live" : "Last known");
+    }
+
+    async function poll() {
+      try {
+        const r = await fetch(DATA_URL + "?t=" + Date.now(), { cache: "no-store" });
+        if (!r.ok) throw new Error(r.status);
+        render(await r.json());
+      } catch (e) {
+        setConn("err", "No data yet");
+      }
+    }
+
+    el("followBtn").addEventListener("click", () => { follow = !follow;
+      el("followBtn").classList.toggle("on", follow); el("followBtn").textContent = follow ? "Following" : "Follow";
+      if (follow && marker) map.panTo(marker.getLatLng()); });
+    el("trailBtn").addEventListener("click", () => { showTrail = !showTrail;
+      el("trailBtn").classList.toggle("on", showTrail);
+      trailLine.setLatLngs(showTrail && marker ? trailLine.getLatLngs() : []); poll(); });
+
+    poll();
+    setInterval(poll, POLL_MS);
+  </script>
+</body>
+</html>

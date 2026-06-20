@@ -1,0 +1,13 @@
+{
+  "cleanUrls": true,
+  "rewrites": [
+    {
+      "source": "/data/live_position.json",
+      "destination": "https://raw.githubusercontent.com/evbarleyg/columbia-ferry-departures/live-data/live_position.json"
+    },
+    {
+      "source": "/data/columbia.json",
+      "destination": "https://raw.githubusercontent.com/evbarleyg/columbia-ferry-departures/live-data/columbia_tracks_summer_2026.json"
+    }
+  ]
+}

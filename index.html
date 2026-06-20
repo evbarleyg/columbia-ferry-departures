@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Columbia Ferry — Friday Departures (AIS)</title>
+  <title>Columbia Ferry Route Explorer</title>
 
   <link
     rel="stylesheet"
@@ -13,306 +13,871 @@
   />
   <style>
     :root {
-      --bg: #0b0f17;
-      --panel: rgba(16, 22, 34, 0.92);
-      --text: #e7ecf4;
-      --muted: #aab6cc;
-      --border: rgba(255,255,255,0.10);
-      --shadow: 0 16px 40px rgba(0,0,0,0.35);
+      color-scheme: dark;
+      --bg: #101316;
+      --panel: rgba(18, 22, 24, 0.94);
+      --panel-strong: rgba(25, 31, 33, 0.96);
+      --surface: rgba(255, 255, 255, 0.07);
+      --surface-strong: rgba(255, 255, 255, 0.11);
+      --text: #f4f0e8;
+      --muted: #b8c2bd;
+      --soft: #899792;
+      --line: rgba(255, 255, 255, 0.13);
+      --line-strong: rgba(255, 255, 255, 0.22);
+      --teal: #43d6b6;
+      --green: #9bd85c;
+      --amber: #f4bf47;
+      --rose: #ee7b7b;
+      --blue: #7eb6ff;
+      --shadow: 0 18px 55px rgba(0, 0, 0, 0.38);
       --radius: 14px;
-      --pad: 12px;
-
-      --drawerMax: 55vh;     /* mobile drawer height */
-      --drawerPeek: 56px;    /* handle bar area */
+      --drawerMax: min(72vh, 640px);
+      --drawerPeek: 68px;
     }
 
-    html, body {
+    * { box-sizing: border-box; }
+
+    html,
+    body {
       height: 100%;
       margin: 0;
       background: var(--bg);
       color: var(--text);
-      font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+      font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      letter-spacing: 0;
       overscroll-behavior: none;
     }
 
-    /* Desktop layout */
-    #app {
-      height: 100%;
-      display: grid;
-      grid-template-columns: 360px 1fr;
+    button,
+    input {
+      font: inherit;
     }
-    #map { height: 100%; width: 100%; }
-
-    .panel {
-      height: 100%;
-      box-sizing: border-box;
-      padding: 14px;
-      border-right: 1px solid var(--border);
-      background: linear-gradient(180deg, rgba(20,26,40,0.95), rgba(10,14,22,0.90));
-      overflow: auto;
-      -webkit-overflow-scrolling: touch;
-    }
-
-    .card {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      padding: var(--pad);
-      margin-bottom: 12px;
-    }
-
-    h1 { font-size: 16px; margin: 0 0 8px; }
-    .sub { font-size: 12px; color: var(--muted); line-height: 1.35; }
-
-    .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-    .row > * { flex: 1 1 auto; }
 
     button {
       appearance: none;
-      background: rgba(255,255,255,0.08);
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: var(--surface);
       color: var(--text);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 10px 12px;
+      min-height: 38px;
+      padding: 9px 12px;
       cursor: pointer;
+      font-size: 13px;
+      font-weight: 700;
+      transition: background 140ms ease, border-color 140ms ease, transform 140ms ease;
+    }
+
+    button:hover {
+      background: var(--surface-strong);
+      border-color: var(--line-strong);
+      transform: translateY(-1px);
+    }
+
+    button:disabled {
+      opacity: 0.38;
+      cursor: not-allowed;
+    }
+
+    button:disabled:hover {
+      background: var(--surface);
+      border-color: var(--line);
+      transform: none;
+    }
+
+    button:focus-visible,
+    input:focus-visible,
+    .route-card:focus-visible {
+      outline: 2px solid var(--teal);
+      outline-offset: 2px;
+    }
+
+    button.primary {
+      border-color: rgba(67, 214, 182, 0.45);
+      background: rgba(67, 214, 182, 0.16);
+      color: #eafff8;
+    }
+
+    #app {
+      display: grid;
+      grid-template-columns: minmax(380px, 420px) 1fr;
+      height: 100%;
+      min-height: 100%;
+      overflow: hidden;
+    }
+
+    #map {
+      width: 100%;
+      height: 100%;
+      background: #9fc7cf;
+    }
+
+    .panel {
+      position: relative;
+      z-index: 800;
+      height: 100%;
+      min-width: 0;
+      padding: 18px;
+      overflow: auto;
+      border-right: 1px solid var(--line);
+      background:
+        linear-gradient(180deg, rgba(26, 34, 34, 0.98), rgba(13, 15, 17, 0.96)),
+        var(--panel);
+      box-shadow: var(--shadow);
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .panel-shell {
+      display: grid;
+      gap: 14px;
+    }
+
+    .hero,
+    .module,
+    .route-card {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      border-radius: var(--radius);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.16);
+    }
+
+    .hero {
+      padding: 17px;
+      background:
+        radial-gradient(circle at top right, rgba(67, 214, 182, 0.16), transparent 36%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.035));
+    }
+
+    .eyebrow {
+      margin: 0 0 7px;
+      color: var(--teal);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0;
+      color: var(--text);
+      font-size: 24px;
+      line-height: 1.08;
+      letter-spacing: 0;
+    }
+
+    .lede {
+      margin: 10px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .module {
+      padding: 14px;
+    }
+
+    .module-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 11px;
+    }
+
+    .module-title h2 {
+      margin: 0;
+      font-size: 13px;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+
+    .hint,
+    .meta,
+    .status,
+    .small {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .status {
+      min-height: 18px;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 9px;
+    }
+
+    .stat {
+      min-width: 0;
+      padding: 11px;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      background: rgba(255, 255, 255, 0.055);
+    }
+
+    .stat .label {
+      display: block;
+      color: var(--soft);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .stat .value {
+      display: block;
+      margin-top: 5px;
+      overflow: hidden;
+      color: var(--text);
+      font-size: 19px;
+      font-weight: 800;
+      line-height: 1.05;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .stat .value.is-empty-val {
+      color: var(--soft);
       font-weight: 600;
     }
-    button:hover { background: rgba(255,255,255,0.12); }
+
+    .controls-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 9px;
+    }
+
+    .button-row {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 9px;
+      margin-top: 10px;
+    }
 
     .toggle {
       display: flex;
       align-items: center;
-      gap: 8px;
-      font-size: 13px;
+      gap: 9px;
+      min-height: 40px;
+      padding: 9px 10px;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      background: rgba(255, 255, 255, 0.055);
       color: var(--text);
+      font-size: 13px;
+      font-weight: 700;
       user-select: none;
     }
-    .toggle input { width: 18px; height: 18px; }
 
-    .list {
-      margin-top: 8px;
-      max-height: 360px;
-      overflow: auto;
-      padding-right: 6px;
-      -webkit-overflow-scrolling: touch;
-    }
-
-    .day {
-      display: flex;
-      justify-content: space-between;
-      gap: 8px;
-      padding: 10px 10px;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      background: rgba(255,255,255,0.05);
-      margin-bottom: 8px;
-      cursor: pointer;
-    }
-    .day:hover { background: rgba(255,255,255,0.08); }
-    .day .d { font-weight: 700; font-size: 13px; }
-    .day .t {
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      font-size: 12px;
-      color: var(--muted);
+    .toggle input {
+      width: 17px;
+      height: 17px;
+      accent-color: var(--teal);
     }
 
     .legend {
       display: grid;
-      grid-template-columns: 1fr;
       gap: 8px;
-      font-size: 12px;
-      color: var(--muted);
+      margin-top: 12px;
     }
-    .bar {
-      height: 10px;
-      border-radius: 999px;
-      border: 1px solid var(--border);
-      background: linear-gradient(90deg,
-        #2dd4bf 0%,
-        #a3e635 25%,
-        #fbbf24 50%,
-        #fb7185 75%,
-        #ef4444 100%
-      );
-      opacity: 0.95;
-    }
-    .legendRow { display: flex; justify-content: space-between; gap: 10px; }
 
-    /* Leaflet tooltip tweaks */
-    .leaflet-tooltip {
-      background: rgba(10,14,22,0.92);
-      color: var(--text);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      box-shadow: var(--shadow);
-    }
-    .tt { font-size: 12px; line-height: 1.25; }
-    .tt .k { color: var(--muted); }
-    .pill {
-      display: inline-block;
-      padding: 2px 8px;
+    .bar {
+      height: 14px;
+      border: 1px solid var(--line);
       border-radius: 999px;
-      border: 1px solid var(--border);
+      /* Stops match departureColor() exactly: 4PM→10PM at 0/.25/.5/.75/1. */
+      background: linear-gradient(90deg,
+        rgb(67, 214, 182) 0%,
+        rgb(155, 216, 92) 25%,
+        rgb(244, 191, 71) 50%,
+        rgb(238, 123, 123) 75%,
+        rgb(220, 74, 74) 100%);
+      box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.18);
+    }
+
+    .legend-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      color: var(--muted);
       font-size: 11px;
+      font-weight: 700;
+    }
+
+    .spotlight {
+      display: grid;
+      gap: 12px;
+    }
+
+    .spotlight-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .spotlight-date {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 850;
+      line-height: 1.1;
+    }
+
+    .spotlight-time {
+      margin-top: 4px;
+      color: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 13px;
+    }
+
+    .swatch {
+      width: 38px;
+      height: 38px;
+      flex: 0 0 auto;
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      border-radius: 50%;
+      box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.06);
+    }
+
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .detail {
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .detail span {
+      display: block;
+      color: var(--soft);
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .detail strong {
+      display: block;
+      margin-top: 4px;
+      overflow: hidden;
+      font-size: 14px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .route-list {
+      display: grid;
+      gap: 9px;
+      max-height: 42vh;
+      overflow: auto;
+      padding-right: 5px;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .route-card {
+      position: relative;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 11px;
+      align-items: center;
+      padding: 12px;
+      cursor: pointer;
+      transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
+    }
+
+    .route-card:hover {
+      border-color: var(--line-strong);
+      background: var(--panel-strong);
+      transform: translateY(-1px);
+    }
+
+    .route-card.is-selected {
+      border-color: rgba(67, 214, 182, 0.5);
+      background: rgba(67, 214, 182, 0.08);
+    }
+
+    .route-card.is-active {
+      border-color: rgba(244, 191, 71, 0.68);
+      box-shadow: inset 3px 0 0 var(--active-color, var(--amber)), 0 10px 28px rgba(0, 0, 0, 0.24);
+    }
+
+    .route-card input {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--teal);
+    }
+
+    .route-main {
+      min-width: 0;
+    }
+
+    .route-date {
+      overflow: hidden;
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 850;
+      line-height: 1.15;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .route-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
       margin-top: 6px;
     }
 
-    /* ============ Mobile drawer mode ============ */
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      min-height: 22px;
+      padding: 3px 7px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--muted);
+      background: rgba(255, 255, 255, 0.05);
+      font-size: 11px;
+      font-weight: 750;
+      white-space: nowrap;
+    }
+
+    .chip.vessel {
+      font-weight: 850;
+      letter-spacing: 0.04em;
+    }
+
+    .chip.vessel-primary {
+      color: #eafff8;
+      border-color: rgba(67, 214, 182, 0.5);
+      background: rgba(67, 214, 182, 0.14);
+    }
+
+    .chip.vessel-relief {
+      color: #ffe9c2;
+      border-color: rgba(244, 191, 71, 0.55);
+      background: rgba(244, 191, 71, 0.14);
+    }
+
+    .route-card.is-empty {
+      cursor: default;
+      grid-template-columns: auto 1fr;
+      background: rgba(255, 255, 255, 0.025);
+    }
+
+    .route-card.is-empty .route-date {
+      color: var(--muted);
+      font-weight: 750;
+    }
+
+    .route-card.is-empty:hover {
+      border-color: var(--line);
+      background: rgba(255, 255, 255, 0.025);
+      transform: none;
+    }
+
+    /* Vessel-tinted accent bar so COLUMBIA vs KENNICOTT scans down the rail. */
+    .route-dot {
+      width: 6px;
+      height: 30px;
+      border-radius: 3px;
+      background: var(--line-strong);
+    }
+
+    .route-dot.vessel-primary { background: rgba(67, 214, 182, 0.55); }
+    .route-dot.vessel-relief { background: rgba(244, 191, 71, 0.6); }
+
+    .chip.is-pending {
+      color: #ffe3b3;
+      border-color: rgba(244, 191, 71, 0.4);
+      background: rgba(244, 191, 71, 0.1);
+    }
+
+    .chip.is-scheduled {
+      color: var(--muted);
+    }
+
+    .season-empty {
+      display: grid;
+      gap: 11px;
+    }
+
+    .season-empty-lede {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12.5px;
+      line-height: 1.5;
+    }
+
+    .season-empty-lede strong { color: var(--text); }
+
+    .list-note {
+      margin: 0 0 9px;
+      color: var(--soft);
+      font-size: 11px;
+      line-height: 1.4;
+    }
+
+    .route-focus {
+      min-height: 32px;
+      padding: 6px 9px;
+      border-radius: 999px;
+      font-size: 12px;
+    }
+
+    .leaflet-bar {
+      border: none;
+      box-shadow: var(--shadow);
+    }
+
+    .leaflet-control-zoom a {
+      background: var(--panel-strong);
+      color: var(--text);
+      border: 1px solid var(--line);
+    }
+
+    .leaflet-control-zoom a:hover {
+      background: var(--surface-strong);
+      color: var(--text);
+    }
+
+    .leaflet-control-zoom a:first-child {
+      border-top-left-radius: 9px;
+      border-top-right-radius: 9px;
+    }
+
+    .leaflet-control-zoom a:last-child {
+      border-top: none;
+      border-bottom-left-radius: 9px;
+      border-bottom-right-radius: 9px;
+    }
+
+    .leaflet-control-attribution {
+      background: rgba(17, 21, 22, 0.82) !important;
+      color: var(--soft) !important;
+    }
+
+    .leaflet-control-attribution a {
+      color: var(--muted) !important;
+    }
+
+    .leaflet-tooltip.route-label,
+    .leaflet-tooltip.point-tip {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(17, 21, 22, 0.94);
+      color: var(--text);
+      box-shadow: var(--shadow);
+    }
+
+    .tip {
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .tip-title {
+      color: var(--text);
+      font-weight: 850;
+    }
+
+    .tip-muted {
+      color: var(--muted);
+    }
+
+    .route-marker {
+      display: grid;
+      place-items: center;
+      width: 30px;
+      height: 30px;
+      border: 2px solid rgba(255, 255, 255, 0.86);
+      border-radius: 50%;
+      color: #101316;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+      font-size: 11px;
+      font-weight: 900;
+    }
+
+    .route-marker.start { background: var(--blue); }
+    .route-marker.depart { background: var(--amber); }
+    .route-marker.end { background: var(--teal); }
+
+    .empty {
+      padding: 14px;
+      border: 1px dashed var(--line-strong);
+      border-radius: 11px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .drawer-handle,
+    #openDrawerFab {
+      display: none;
+    }
+
     @media (max-width: 920px) {
       #app {
-        grid-template-columns: 1fr;
-        grid-template-rows: 1fr;
+        display: block;
       }
 
-      /* panel becomes a bottom drawer overlay */
       .panel {
         position: fixed;
-        left: 0;
         right: 0;
         bottom: 0;
-
+        left: 0;
         height: var(--drawerMax);
         max-height: var(--drawerMax);
-
+        padding: 10px 14px 16px;
+        border-top: 1px solid var(--line);
         border-right: none;
-        border-top: 1px solid var(--border);
-
-        z-index: 1200;
-
-        transform: translateY(calc(var(--drawerMax) - var(--drawerPeek)));
-        transition: transform 180ms ease-out;
-
         border-top-left-radius: 18px;
         border-top-right-radius: 18px;
-
-        padding-top: 10px;
-        padding-bottom: 14px;
+        transform: translateY(calc(var(--drawerMax) - var(--drawerPeek)));
+        transition: transform 180ms ease-out;
+        overscroll-behavior: contain;
       }
 
       .panel.open {
         transform: translateY(0);
       }
 
-      /* Drawer handle */
-      .drawerHandle {
+      /* "Close" on a closed/peeked drawer is contradictory — show it only when open. */
+      .panel:not(.open) #closeDrawer {
+        visibility: hidden;
+      }
+
+      .drawer-handle {
         position: sticky;
         top: 0;
-        display: flex;
+        z-index: 20;
+        display: grid;
+        grid-template-columns: 72px 1fr 72px;
+        gap: 8px;
         align-items: center;
-        justify-content: space-between;
-        gap: 10px;
-        padding: 6px 6px 10px;
-        z-index: 1300;
-        background: linear-gradient(180deg, rgba(20,26,40,0.95), rgba(20,26,40,0.55));
-        border-top-left-radius: 18px;
-        border-top-right-radius: 18px;
+        margin: -10px -4px 6px;
+        padding: 10px 0 8px;
+        background: linear-gradient(180deg, rgba(24, 30, 31, 0.98), rgba(24, 30, 31, 0.78));
       }
 
       .grabber {
         width: 46px;
         height: 5px;
+        margin: 0 auto 6px;
         border-radius: 999px;
-        background: rgba(255,255,255,0.25);
-        margin: 0 auto;
+        background: rgba(255, 255, 255, 0.28);
       }
 
-      .drawerTitle {
-        font-size: 12px;
+      .drawer-title {
         color: var(--muted);
         text-align: center;
-        flex: 1 1 auto;
+        font-size: 12px;
+        font-weight: 800;
       }
 
-      .drawerBtn {
-        flex: 0 0 auto;
-        padding: 8px 10px;
+      .drawer-btn {
+        min-height: 44px;
+        padding: 9px 12px;
         border-radius: 999px;
       }
 
-      /* List height smaller on mobile */
-      .list { max-height: 260px; }
+      /* Comfortable touch targets (>=44px) on phones. */
+      button,
+      .toggle,
+      .route-focus {
+        min-height: 44px;
+      }
 
-      /* Floating open button when drawer closed */
+      .stats-grid,
+      .detail-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .route-list {
+        max-height: 260px;
+        overscroll-behavior: contain;
+      }
+
+      /* Left side is clear once "Close" is hidden in the peek, so the FAB lives
+         here without overlapping the handle's Fit button on the right. */
       #openDrawerFab {
         position: fixed;
         left: 12px;
         bottom: 12px;
-        z-index: 1250;
+        z-index: 850;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 44px;
+        min-width: 44px;
         border-radius: 999px;
-        padding: 10px 12px;
+        background: rgba(18, 22, 24, 0.94);
         box-shadow: var(--shadow);
-        background: rgba(16, 22, 34, 0.92);
-        border: 1px solid var(--border);
-        color: var(--text);
-        font-weight: 700;
       }
-      #openDrawerFab.hidden { display: none; }
+
+      #openDrawerFab.hidden {
+        display: none;
+      }
+    }
+
+    @media (max-width: 520px) {
+      .panel {
+        padding-right: 11px;
+        padding-left: 11px;
+      }
+
+      h1 {
+        font-size: 21px;
+      }
+
+      .button-row,
+      .controls-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .route-card {
+        grid-template-columns: auto 1fr;
+      }
+
+      .route-focus {
+        grid-column: 2;
+        justify-self: start;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+      }
     }
   </style>
 </head>
 
 <body>
   <div id="app">
-    <div class="panel" id="panel">
-      <!-- Mobile-only drawer handle (still harmless on desktop) -->
-      <div class="drawerHandle" id="drawerHandle" style="display:none;">
-        <button class="drawerBtn" id="closeDrawer">Close</button>
-        <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:6px;">
-          <div class="grabber"></div>
-          <div class="drawerTitle">Controls</div>
+    <aside class="panel" id="panel" aria-label="Columbia ferry route controls">
+      <div class="drawer-handle" id="drawerHandle">
+        <button class="drawer-btn" id="closeDrawer" type="button">Close</button>
+        <div>
+          <div class="grabber" aria-hidden="true"></div>
+          <div class="drawer-title">Route Explorer</div>
         </div>
-        <button class="drawerBtn" id="fit2">Fit</button>
+        <button class="drawer-btn" id="fit2" type="button">Fit</button>
       </div>
 
-      <div class="card">
-        <h1>Columbia — Friday Departures (AIS)</h1>
-        <div class="sub">
-          Tap a date or use checkboxes to show multiple Fridays.
-          Color encodes departure time relative to 6:00 PM PT.
-        </div>
-      </div>
+      <div class="panel-shell">
+        <header class="hero">
+          <p class="eyebrow">Bellingham terminal AIS</p>
+          <h1>Columbia Friday departures · 2026</h1>
+          <p class="lede">
+            Summer 2026 Bellingham mainline Fridays — the Columbia, with the Kennicott relieving in early June. Tracks fill in as each Friday sails; spotlight one to read its departure off the route.
+          </p>
+        </header>
 
-      <div class="card">
-        <div class="row" style="margin-bottom:10px;">
-          <label class="toggle">
-            <input id="showGeofence" type="checkbox" checked />
-            Show geofence
-          </label>
-          <label class="toggle">
-            <input id="showPoints" type="checkbox" checked />
-            Show dots
-          </label>
-        </div>
-
-        <div class="row" style="margin-bottom:10px;">
-          <button id="selectAll">Select all</button>
-          <button id="selectNone">Select none</button>
-          <button id="fit">Fit to selection</button>
-        </div>
-
-        <div class="legend">
-          <div class="bar" title="Earlier (green) → later (red)"></div>
-          <div class="legendRow">
-            <span>pre-6pm</span>
-            <span>6pm</span>
-            <span>late</span>
+        <section class="module" aria-labelledby="statsTitle">
+          <div class="module-title">
+            <h2 id="statsTitle">Selection summary</h2>
+            <span class="status" id="status" role="status" aria-live="polite">Loading...</span>
           </div>
-          <div class="sub" id="status" style="margin-top:6px;">Loading…</div>
-        </div>
-      </div>
+          <div class="stats-grid">
+            <div class="stat">
+              <span class="label">Selected</span>
+              <span class="value" id="statSelected">-</span>
+            </div>
+            <div class="stat">
+              <span class="label">Median dep.</span>
+              <span class="value" id="statMedian">-</span>
+            </div>
+            <div class="stat">
+              <span class="label">Earliest</span>
+              <span class="value" id="statEarliest">-</span>
+            </div>
+            <div class="stat">
+              <span class="label">Latest</span>
+              <span class="value" id="statLatest">-</span>
+            </div>
+          </div>
+        </section>
 
-      <div class="card">
-        <div class="sub" style="margin-bottom:8px;">Fridays (checkbox selection)</div>
-        <div class="list" id="dayList"></div>
-      </div>
-    </div>
+        <section class="module" aria-labelledby="controlsTitle">
+          <div class="module-title">
+            <h2 id="controlsTitle">Map layers</h2>
+            <span class="hint">Color = departure time</span>
+          </div>
 
-    <div id="map"></div>
+          <div class="controls-grid">
+            <label class="toggle">
+              <input id="showGeofence" type="checkbox" checked />
+              Terminal box
+            </label>
+            <label class="toggle">
+              <input id="showPoints" type="checkbox" />
+              AIS pings
+            </label>
+            <label class="toggle">
+              <input id="focusOnly" type="checkbox" />
+              Focus route only
+            </label>
+            <label class="toggle">
+              <input id="showLabels" type="checkbox" checked />
+              Route labels
+            </label>
+          </div>
+
+          <div class="button-row" aria-label="Selection shortcuts">
+            <button id="selectRecent" type="button">Recent 4</button>
+            <button id="selectAll" type="button">All</button>
+            <button id="selectNone" type="button">None</button>
+          </div>
+          <div class="button-row">
+            <button class="primary" id="fit" type="button">Fit map</button>
+            <button id="showEarliest" type="button">Earliest</button>
+            <button id="showLatest" type="button">Latest</button>
+          </div>
+
+          <div class="legend" aria-label="Departure-time color legend">
+            <div class="bar" role="img" aria-label="Departure-time color scale: teal at 4 PM (earlier) through amber to red at 10 PM (later). Each route's exact departure time is also shown as text on its card." title="Earlier departures are cooler; later departures are warmer"></div>
+            <div class="legend-row">
+              <span>4 PM</span>
+              <span>7 PM</span>
+              <span>10 PM</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="module spotlight" aria-labelledby="spotlightTitle">
+          <div class="module-title">
+            <h2 id="spotlightTitle">Spotlight route</h2>
+            <span class="hint">Click a route to inspect it</span>
+          </div>
+          <div id="routeDetail" class="spotlight" aria-live="polite"></div>
+        </section>
+
+        <section class="module" aria-labelledby="routesTitle">
+          <div class="module-title">
+            <h2 id="routesTitle">Friday sailings</h2>
+            <span class="hint" id="routeCount">-</span>
+          </div>
+          <p class="list-note">Greyed Fridays haven't sailed yet — each lights up once captured. Check to plot · click to spotlight.</p>
+          <div class="route-list" id="dayList"></div>
+        </section>
+      </div>
+    </aside>
+
+    <main id="map" role="region" aria-label="Map of Columbia ferry routes. The full route data — dates, vessels, and departure times — is available as text in the Friday sailings list."></main>
   </div>
 
-  <!-- Mobile FAB to open drawer -->
-  <button id="openDrawerFab" class="hidden">Controls</button>
+  <button id="openDrawerFab" class="hidden" type="button" aria-controls="panel" aria-expanded="false">Routes</button>
 
   <script
     src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
@@ -321,93 +886,147 @@
   ></script>
 
   <script>
-    const JSON_PATH = "./columbia_tracks_summer_fridays_2025.json";
+    const JSON_PATH = "./columbia_tracks_summer_2026.json";
+    // On Vercel, /data/columbia.json rewrites to the live-data branch (refreshed by
+    // the 5-min poll Action). Locally that 404s, so we fall back to the committed file.
+    const DATA_SOURCES = ["/data/columbia.json", JSON_PATH];
+    async function loadData() {
+      let lastErr;
+      for (const url of DATA_SOURCES) {
+        try {
+          const r = await fetch(url, { cache: "no-store" });
+          if (r.ok) return await r.json();
+          lastErr = new Error(`${url} -> ${r.status}`);
+        } catch (e) { lastErr = e; }
+      }
+      throw lastErr || new Error("no data source");
+    }
     const TZ_LABEL = "PT";
+    const SIX_PM_MINUTES = 18 * 60;
+    const RECENT_COUNT = 4;
 
-    // UI elements
     const elList = document.getElementById("dayList");
     const elStatus = document.getElementById("status");
+    const elRouteCount = document.getElementById("routeCount");
+    const elRouteDetail = document.getElementById("routeDetail");
     const elShowGeofence = document.getElementById("showGeofence");
     const elShowPoints = document.getElementById("showPoints");
+    const elFocusOnly = document.getElementById("focusOnly");
+    const elShowLabels = document.getElementById("showLabels");
+    const elStatSelected = document.getElementById("statSelected");
+    const elStatMedian = document.getElementById("statMedian");
+    const elStatEarliest = document.getElementById("statEarliest");
+    const elStatLatest = document.getElementById("statLatest");
     const btnAll = document.getElementById("selectAll");
     const btnNone = document.getElementById("selectNone");
+    const btnRecent = document.getElementById("selectRecent");
     const btnFit = document.getElementById("fit");
+    const btnEarliest = document.getElementById("showEarliest");
+    const btnLatest = document.getElementById("showLatest");
 
-    // Mobile drawer UI
     const panel = document.getElementById("panel");
     const openFab = document.getElementById("openDrawerFab");
-    const drawerHandle = document.getElementById("drawerHandle");
     const closeDrawerBtn = document.getElementById("closeDrawer");
     const fit2Btn = document.getElementById("fit2");
 
-    function isMobile() { return window.matchMedia("(max-width: 920px)").matches; }
+    const map = L.map("map", {
+      zoomControl: true,
+      preferCanvas: true
+    }).setView([48.73, -122.52], 12);
 
-    function setDrawer(open) {
-      if (!isMobile()) return;
-      panel.classList.toggle("open", !!open);
-      openFab.classList.toggle("hidden", !!open);
-    }
-
-    function configureMobileUI() {
-      if (isMobile()) {
-        drawerHandle.style.display = "flex";
-        openFab.classList.remove("hidden");
-        // start closed
-        setDrawer(false);
-      } else {
-        drawerHandle.style.display = "none";
-        openFab.classList.add("hidden");
-        panel.classList.remove("open");
-      }
-    }
-
-    openFab.addEventListener("click", () => setDrawer(true));
-    closeDrawerBtn.addEventListener("click", () => setDrawer(false));
-    fit2Btn.addEventListener("click", () => fitToSelection());
-
-    window.addEventListener("resize", configureMobileUI);
-
-    // Map
-    const map = L.map("map", { zoomControl: true }).setView([48.73, -122.52], 12);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 18,
       attribution: "&copy; OpenStreetMap contributors"
     }).addTo(map);
 
-    // Layers
-    const linesLayer = L.layerGroup().addTo(map);
+    const geofenceLayer = L.layerGroup().addTo(map);
+    const routesLayer = L.layerGroup().addTo(map);
+    const markersLayer = L.layerGroup().addTo(map);
     const pointsLayer = L.layerGroup().addTo(map);
     let geofenceRect = null;
 
-    // State
     let DATA = null;
-    let selected = new Set(); // friday_pt strings
+    let routeSummaries = [];
+    let routeByKey = new Map();
+    let selected = new Set();
+    let activeKey = null;
 
-    function clamp01(x) { return Math.max(0, Math.min(1, x)); }
+    function isMobile() {
+      return window.matchMedia("(max-width: 920px)").matches;
+    }
 
-    // Time color scale: map minutes after midnight to gradient around 6pm.
-    // We map [16:00..20:30] to [0..1] for a stable visual.
-    function departureColor(depMinutes) {
-      const min = 16*60;
-      const max = 20.5*60;
-      const t = clamp01((depMinutes - min) / (max - min));
+    function setDrawer(open) {
+      if (!isMobile()) return;
+      panel.classList.toggle("open", !!open);
+      openFab.classList.toggle("hidden", !!open);
+      openFab.setAttribute("aria-expanded", String(!!open));
+      setTimeout(() => map.invalidateSize(), 220); // clear the 180ms drawer transition
+    }
 
-      const stops = [
-        { t: 0.00, c: [45, 212, 191] }, // teal
-        { t: 0.25, c: [163, 230, 53] }, // lime
-        { t: 0.50, c: [251, 191, 36] }, // amber
-        { t: 0.75, c: [251, 113, 133] }, // pink
-        { t: 1.00, c: [239, 68, 68] }    // red
-      ];
-      let a = stops[0], b = stops[stops.length-1];
-      for (let i=0; i<stops.length-1; i++) {
-        if (t >= stops[i].t && t <= stops[i+1].t) { a = stops[i]; b = stops[i+1]; break; }
+    function configureMobileUI() {
+      if (isMobile()) {
+        const open = panel.classList.contains("open");
+        openFab.classList.toggle("hidden", open);
+        openFab.setAttribute("aria-expanded", String(open));
+      } else {
+        panel.classList.remove("open");
+        openFab.classList.add("hidden");
+        openFab.setAttribute("aria-expanded", "false");
       }
+      setTimeout(() => map.invalidateSize(), 100);
+    }
+
+    function clamp01(x) {
+      return Math.max(0, Math.min(1, x));
+    }
+
+    function departureColor(depMinutes) {
+      if (depMinutes == null) return "rgb(190,198,192)";
+
+      const min = 16 * 60;
+      const max = 22 * 60;
+      const t = clamp01((depMinutes - min) / (max - min));
+      const stops = [
+        { t: 0.00, c: [67, 214, 182] },
+        { t: 0.25, c: [155, 216, 92] },
+        { t: 0.50, c: [244, 191, 71] },
+        { t: 0.75, c: [238, 123, 123] },
+        { t: 1.00, c: [220, 74, 74] }
+      ];
+
+      let a = stops[0];
+      let b = stops[stops.length - 1];
+      for (let i = 0; i < stops.length - 1; i++) {
+        if (t >= stops[i].t && t <= stops[i + 1].t) {
+          a = stops[i];
+          b = stops[i + 1];
+          break;
+        }
+      }
+
       const u = (t - a.t) / (b.t - a.t || 1);
       const r = Math.round(a.c[0] + (b.c[0] - a.c[0]) * u);
       const g = Math.round(a.c[1] + (b.c[1] - a.c[1]) * u);
       const b2 = Math.round(a.c[2] + (b.c[2] - a.c[2]) * u);
       return `rgb(${r},${g},${b2})`;
+    }
+
+    // All sailing times are Pacific. Derive wall-clock parts in PT regardless of
+    // the VIEWER's timezone — otherwise a non-Pacific visitor sees wrong times,
+    // off-by-a-day dates, and (worst) the >=14:00 departure-window gate strips the
+    // real departure. Formatters are built once (per-call construction is costly).
+    const PT_TZ = "America/Los_Angeles";
+    const ptTimeFmt = new Intl.DateTimeFormat("en-US", {
+      timeZone: PT_TZ, hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit"
+    });
+    const ptDateFmt = new Intl.DateTimeFormat("en-US", {
+      timeZone: PT_TZ, month: "short", day: "numeric"
+    });
+
+    function ptParts(d) {
+      const parts = {};
+      for (const p of ptTimeFmt.formatToParts(d)) parts[p.type] = p.value;
+      return { h: +parts.hour % 24, m: +parts.minute, s: +parts.second }; // "24" -> 0 at midnight
     }
 
     function parseISO(s) {
@@ -416,229 +1035,576 @@
     }
 
     function minutesAfterMidnight(d) {
-      return d.getHours()*60 + d.getMinutes() + d.getSeconds()/60;
+      const { h, m, s } = ptParts(d);
+      return h * 60 + m + s / 60;
     }
 
     function fmtTime(d) {
-      const hh = String(d.getHours()).padStart(2,"0");
-      const mm = String(d.getMinutes()).padStart(2,"0");
-      const ss = String(d.getSeconds()).padStart(2,"0");
-      return `${hh}:${mm}:${ss}`;
+      if (!d) return "n/a";
+      const { h, m, s } = ptParts(d);
+      return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
     }
 
-    function fmtDateKey(friday_pt_str) {
-      return friday_pt_str.slice(0, 10);
+    function fmtMinutes(totalMinutes) {
+      if (totalMinutes == null || Number.isNaN(totalMinutes)) return "n/a";
+      const h = Math.floor(totalMinutes / 60);
+      const m = Math.round(totalMinutes % 60);
+      return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
     }
 
-    // Filter to only show the evening "departure" track.
-    // Window: from 14:00 to 23:59 local. Drops the morning arrival.
+    function fmtDateKey(fridayPtStr) {
+      return fridayPtStr.slice(0, 10);
+    }
+
+    function fmtShortDate(fridayPtStr) {
+      const d = parseISO(fridayPtStr.replace(" ", "T"));
+      if (!d) return fmtDateKey(fridayPtStr);
+      return ptDateFmt.format(d);
+    }
+
+    function fmtDelta(minutes) {
+      if (minutes == null || Number.isNaN(minutes)) return "departure n/a";
+      const delta = Math.round(minutes - SIX_PM_MINUTES);
+      if (Math.abs(delta) < 1) return "on 6 PM";
+      const abs = Math.abs(delta);
+      const label = `${abs} min ${delta < 0 ? "early" : "late"}`;
+      return label;
+    }
+
+    function haversineNm(a, b) {
+      const toRad = value => value * Math.PI / 180;
+      const earthRadiusNm = 3440.065;
+      const dLat = toRad(b.lat - a.lat);
+      const dLon = toRad(b.lon - a.lon);
+      const lat1 = toRad(a.lat);
+      const lat2 = toRad(b.lat);
+      const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+      return 2 * earthRadiusNm * Math.asin(Math.sqrt(h));
+    }
+
+    function routeDistanceNm(points) {
+      let total = 0;
+      for (let i = 1; i < points.length; i++) total += haversineNm(points[i - 1], points[i]);
+      return total;
+    }
+
     function filterToDepartureWindow(points) {
-      return points.filter(p => {
-        const d = parseISO(p.t);
-        if (!d) return false;
-        const m = minutesAfterMidnight(d);
-        return m >= 14*60;
-      });
+      return points
+        .map(p => ({ ...p, d: parseISO(p.t) }))
+        .filter(p => p.d && minutesAfterMidnight(p.d) >= 14 * 60)
+        .sort((a, b) => a.d - b.d);
     }
 
-    // Find "true departure time": first time we hit sustained >=8 kn for 3 pings.
     function detectDeparture(points) {
-      const pts = points
-        .map(p => ({...p, d: parseISO(p.t)}))
-        .filter(p => p.d)
-        .sort((a,b) => a.d - b.d);
-
-      const FAST_MIN = 8.0;
-      const SUSTAIN_N = 3;
-
+      // The northbound departure is the LAST sustained fast run of the day, so an
+      // earlier arrival approach (on days the vessel arrives then departs — e.g.
+      // 2026-06-19, arr 4:45p + dep 9:45p) can't be mislabeled as the departure.
+      const fastMin = 8.0;
+      const sustainN = 3;
       let run = 0;
-      for (let i=0; i<pts.length; i++) {
-        if ((+pts[i].sog) >= FAST_MIN) {
+      let departure = null;
+      for (let i = 0; i < points.length; i++) {
+        if ((+points[i].sog) >= fastMin) {
           run++;
-          if (run >= SUSTAIN_N) {
-            return pts[i - (SUSTAIN_N - 1)].d;
-          }
+          if (run === sustainN) departure = points[i - (sustainN - 1)];
         } else {
           run = 0;
         }
       }
-      return null;
+      return departure;
     }
 
-    function clearLayers() {
-      linesLayer.clearLayers();
+    function buildRouteSummaries(days) {
+      return days.map((day, index) => {
+        const key = day.friday_pt;
+        const points = filterToDepartureWindow(day.points);
+        const departurePoint = detectDeparture(points);
+        const departureTime = departurePoint ? departurePoint.d : null;
+        const departureMinutes = departureTime ? minutesAfterMidnight(departureTime) : null;
+        const color = departureColor(departureMinutes);
+        const first = points[0] || null;
+        const last = points[points.length - 1] || null;
+        const distanceNm = points.length > 1 ? routeDistanceNm(points) : 0;
+        const maxSog = points.reduce((max, p) => Math.max(max, +p.sog || 0), 0);
+        const durationMinutes = first && last ? (last.d - first.d) / 60000 : null;
+
+        return {
+          index,
+          key,
+          vessel: day.vessel,
+          status: day.status,
+          captured: day.status === "captured" && points.length >= 2,
+          dateLabel: fmtDateKey(key),
+          shortDate: fmtShortDate(key),
+          points,
+          departurePoint,
+          departureTime,
+          departureMinutes,
+          color,
+          first,
+          last,
+          distanceNm,
+          maxSog,
+          durationMinutes
+        };
+      });
+    }
+
+    function getSelectedRoutes() {
+      const visibleRoutes = routeSummaries.filter(route => selected.has(route.key));
+      if (elFocusOnly.checked && activeKey) {
+        const active = visibleRoutes.find(route => route.key === activeKey);
+        return active ? [active] : visibleRoutes;
+      }
+      return visibleRoutes;
+    }
+
+    function chooseActiveRoute() {
+      if (activeKey && selected.has(activeKey)) return;
+      const selectedRoutes = routeSummaries.filter(route => selected.has(route.key));
+      activeKey = selectedRoutes.length ? selectedRoutes[selectedRoutes.length - 1].key : null;
+    }
+
+    function setActiveRoute(key, shouldFit = false) {
+      if (!routeByKey.has(key)) return;
+      activeKey = key;
+      if (!selected.has(key)) selected.add(key);
+      render(); // render() already calls renderDetail()
+      buildList();
+      if (shouldFit) fitToRoute(key);
+    }
+
+    function selectKeys(keys) {
+      selected = new Set(keys);
+      chooseActiveRoute();
+      render(); // render() already calls renderDetail()
+      buildList();
+      fitToSelection();
+    }
+
+    function findRouteByTiming(mode) {
+      const routes = routeSummaries.filter(route => route.departureMinutes != null);
+      if (!routes.length) return null;
+      return routes.reduce((best, route) => {
+        if (!best) return route;
+        if (mode === "earliest") return route.departureMinutes < best.departureMinutes ? route : best;
+        return route.departureMinutes > best.departureMinutes ? route : best;
+      }, null);
+    }
+
+    function clearMapLayers() {
+      routesLayer.clearLayers();
+      markersLayer.clearLayers();
       pointsLayer.clearLayers();
     }
 
     function drawGeofence(meta) {
-      if (geofenceRect) {
-        map.removeLayer(geofenceRect);
-        geofenceRect = null;
-      }
-      const bounds = [
+      geofenceLayer.clearLayers();
+      geofenceRect = L.rectangle([
         [meta.lat_min, meta.lon_min],
         [meta.lat_max, meta.lon_max]
-      ];
-      geofenceRect = L.rectangle(bounds, {
-        color: "rgba(255,255,255,0.7)",
-        weight: 2,
-        fillColor: "rgba(255,255,255,0.08)",
-        fillOpacity: 1.0
+      ], {
+        color: "rgba(20, 25, 25, 0.36)",
+        dashArray: "5 9",
+        weight: 1,
+        fill: false
       });
-      if (elShowGeofence.checked) geofenceRect.addTo(map);
+      if (elShowGeofence.checked) geofenceRect.addTo(geofenceLayer);
     }
 
     function updateGeofenceVisibility() {
       if (!geofenceRect) return;
-      if (elShowGeofence.checked) geofenceRect.addTo(map);
-      else map.removeLayer(geofenceRect);
+      geofenceLayer.clearLayers();
+      if (elShowGeofence.checked) geofenceRect.addTo(geofenceLayer);
+    }
+
+    function markerIcon(kind) {
+      const label = kind === "depart" ? "D" : kind === "start" ? "S" : "E";
+      return L.divIcon({
+        className: "",
+        html: `<span class="route-marker ${kind}">${label}</span>`,
+        iconSize: [30, 30],
+        iconAnchor: [15, 15]
+      });
+    }
+
+    function routeTooltip(route) {
+      return `
+        <div class="tip">
+          <div class="tip-title">${route.dateLabel}</div>
+          <div class="tip-muted">Dep. ${fmtTime(route.departureTime)} ${TZ_LABEL} · ${fmtDelta(route.departureMinutes)}</div>
+          <div class="tip-muted">${route.distanceNm.toFixed(1)} nm visible · max ${route.maxSog.toFixed(1)} kn</div>
+        </div>
+      `;
+    }
+
+    function pointTooltip(route, point) {
+      return `
+        <div class="tip">
+          <div class="tip-title">${route.dateLabel}</div>
+          <div class="tip-muted">${fmtTime(point.d)} ${TZ_LABEL}</div>
+          <div class="tip-muted">SOG ${(+point.sog).toFixed(1)} kn</div>
+        </div>
+      `;
+    }
+
+    function drawRoute(route) {
+      if (route.points.length < 2) return;
+
+      const isActive = route.key === activeKey;
+      const latlngs = route.points.map(p => [p.lat, p.lon]);
+      const baseOptions = {
+        color: route.color,
+        interactive: true,
+        lineCap: "round",
+        lineJoin: "round"
+      };
+
+      if (isActive) {
+        L.polyline(latlngs, {
+          ...baseOptions,
+          color: "rgba(255, 255, 255, 0.72)",
+          weight: 11,
+          opacity: 0.72
+        }).addTo(routesLayer);
+      }
+
+      const routeLine = L.polyline(latlngs, {
+        ...baseOptions,
+        weight: isActive ? 6 : 4,
+        opacity: isActive ? 1 : 0.58
+      }).bindTooltip(routeTooltip(route), {
+        sticky: true,
+        className: "route-label"
+      }).addTo(routesLayer);
+
+      routeLine.on("click", () => setActiveRoute(route.key));
+
+      if (isActive) {
+        const markerPoints = [
+          { kind: "start", point: route.first, title: "First visible ping" },
+          { kind: "depart", point: route.departurePoint, title: "Detected departure" },
+          { kind: "end", point: route.last, title: "Last visible ping" }
+        ].filter(item => item.point);
+
+        for (const item of markerPoints) {
+          L.marker([item.point.lat, item.point.lon], {
+            icon: markerIcon(item.kind),
+            keyboard: false,
+            title: item.title
+          }).bindTooltip(pointTooltip(route, item.point), {
+            sticky: true,
+            className: "point-tip"
+          }).addTo(markersLayer);
+        }
+      }
+
+      if (elShowPoints.checked && isActive) {
+        const step = Math.max(1, Math.ceil(route.points.length / 54));
+        for (let i = 0; i < route.points.length; i += step) {
+          const p = route.points[i];
+          L.circleMarker([p.lat, p.lon], {
+            radius: 3.5,
+            weight: 1,
+            color: "rgba(18, 22, 24, 0.62)",
+            fillColor: route.color,
+            fillOpacity: 0.95
+          }).bindTooltip(pointTooltip(route, p), {
+            sticky: true,
+            className: "point-tip"
+          }).addTo(pointsLayer);
+        }
+      }
+
+      if (elShowLabels.checked && isActive && route.departurePoint) {
+        L.tooltip({
+          permanent: true,
+          direction: "top",
+          offset: [0, -12],
+          className: "route-label"
+        })
+          .setLatLng([route.departurePoint.lat, route.departurePoint.lon])
+          .setContent(`<div class="tip"><span class="tip-title">${route.shortDate}</span> <span class="tip-muted">${fmtTime(route.departureTime).slice(0, 5)}</span></div>`)
+          .addTo(markersLayer);
+      }
+    }
+
+    function renderMap() {
+      clearMapLayers();
+      updateGeofenceVisibility();
+      chooseActiveRoute();
+      for (const route of getSelectedRoutes()) drawRoute(route);
+    }
+
+    function renderStats() {
+      const capturedCount = routeSummaries.filter(route => route.captured).length;
+      const routes = routeSummaries.filter(route => selected.has(route.key));
+      const timed = routes.filter(route => route.departureMinutes != null).sort((a, b) => a.departureMinutes - b.departureMinutes);
+      const median = timed.length ? timed[Math.floor((timed.length - 1) / 2)] : null;
+      const earliest = timed[0] || null;
+      const latest = timed[timed.length - 1] || null;
+
+      const setStat = (el, value) => {
+        el.textContent = value ?? "—";
+        el.classList.toggle("is-empty-val", value == null);
+      };
+      elStatSelected.textContent = `${routes.length}/${capturedCount}`;
+      setStat(elStatMedian, median ? fmtMinutes(median.departureMinutes) : null);
+      setStat(elStatEarliest, earliest ? `${earliest.shortDate} ${fmtMinutes(earliest.departureMinutes)}` : null);
+      setStat(elStatLatest, latest ? `${latest.shortDate} ${fmtMinutes(latest.departureMinutes)}` : null);
+      elStatus.textContent = capturedCount === 0
+        ? "season not started"
+        : (elFocusOnly.checked && activeKey ? "focus mode" : (routes.length > 1 ? "compare mode" : "browsing"));
+      elRouteCount.textContent = `${routeSummaries.length} Fridays`;
+
+      // Earliest/Latest/Recent/All do nothing useful with zero captured days.
+      const noData = capturedCount === 0;
+      [btnRecent, btnAll, btnEarliest, btnLatest].forEach(b => { b.disabled = noData; });
+    }
+
+    function renderDetail() {
+      chooseActiveRoute();
+      const route = activeKey ? routeByKey.get(activeKey) : null;
+      if (!route) {
+        const capturedCount = routeSummaries.filter(r => r.captured).length;
+        if (capturedCount === 0) {
+          const next = routeSummaries.find(r => r.status === "scheduled")
+            || routeSummaries.find(r => r.status === "pending");
+          const nextLabel = next ? next.shortDate : "soon";
+          const pendingCount = routeSummaries.filter(r => r.status === "pending").length;
+          elRouteDetail.innerHTML = `
+            <div class="season-empty">
+              <div class="spotlight-head">
+                <div>
+                  <p class="spotlight-date">Season hasn't started</p>
+                  <div class="spotlight-time">0 of ${routeSummaries.length} Fridays tracked</div>
+                </div>
+              </div>
+              <p class="season-empty-lede">Each Friday's card lights up after the ferry sails and its track is captured. The first track lands after the <strong>${nextLabel}</strong> departure.</p>
+              <div class="detail-grid">
+                <div class="detail"><span>Next sailing</span><strong>${nextLabel}</strong></div>
+                <div class="detail"><span>Awaiting backfill</span><strong>${pendingCount} Fridays</strong></div>
+              </div>
+            </div>`;
+          return;
+        }
+        elRouteDetail.innerHTML = `<div class="empty">Select a Friday route to see its detected departure, visible track length, and speed profile.</div>`;
+        return;
+      }
+
+      elRouteDetail.innerHTML = `
+        <div class="spotlight-head">
+          <div>
+            <p class="spotlight-date">${route.dateLabel}</p>
+            <div class="spotlight-time">${route.vessel} · Dep. ${fmtTime(route.departureTime)} ${TZ_LABEL} · ${fmtDelta(route.departureMinutes)}</div>
+          </div>
+          <span class="swatch" style="background:${route.color};"></span>
+        </div>
+        <div class="detail-grid">
+          <div class="detail">
+            <span>Visible track</span>
+            <strong>${route.distanceNm.toFixed(1)} nm</strong>
+          </div>
+          <div class="detail">
+            <span>Max speed</span>
+            <strong>${route.maxSog.toFixed(1)} kn</strong>
+          </div>
+          <div class="detail">
+            <span>Time in view</span>
+            <strong>${route.durationMinutes ? `${Math.round(route.durationMinutes)} min` : "n/a"}</strong>
+          </div>
+          <div class="detail">
+            <span>AIS pings</span>
+            <strong>${route.points.length}</strong>
+          </div>
+        </div>
+        <button class="primary" type="button" id="focusRouteBtn">Fit this route</button>
+      `;
+
+      document.getElementById("focusRouteBtn").addEventListener("click", () => fitToRoute(route.key));
     }
 
     function render() {
       if (!DATA) return;
+      renderMap();
+      renderStats();
+      renderDetail();
+    }
 
-      clearLayers();
-      updateGeofenceVisibility();
+    function fitPadding() {
+      if (!isMobile()) return { paddingTopLeft: [24, 24], paddingBottomRight: [24, 24] };
+      // Reserve the area the drawer actually obscures: its open height, else the peek.
+      const bottom = panel.classList.contains("open")
+        ? Math.round(panel.getBoundingClientRect().height) + 16
+        : 84;
+      return { paddingTopLeft: [16, 16], paddingBottomRight: [16, bottom] };
+    }
 
-      const showPts = elShowPoints.checked;
-      const selCount = selected.size;
-
-      for (const day of DATA.days) {
-        if (!selected.has(day.friday_pt)) continue;
-
-        const depOnly = filterToDepartureWindow(day.points);
-        if (depOnly.length < 2) continue;
-
-        const depTime = detectDeparture(depOnly);
-        const depMinutes = depTime ? minutesAfterMidnight(depTime) : null;
-        const color = depMinutes != null ? departureColor(depMinutes) : "rgba(255,255,255,0.65)";
-
-        const latlngs = depOnly.map(p => [p.lat, p.lon]);
-
-        L.polyline(latlngs, { color, weight: 4, opacity: 0.95 }).addTo(linesLayer);
-
-        if (showPts) {
-          for (const p of depOnly) {
-            const d = parseISO(p.t);
-            if (!d) continue;
-
-            const tip = `
-              <div class="tt">
-                <div><span class="k">Date:</span> ${fmtDateKey(day.friday_pt)}</div>
-                <div><span class="k">Time:</span> ${fmtTime(d)} ${TZ_LABEL}</div>
-                <div><span class="k">SOG:</span> ${(+p.sog).toFixed(1)} kn</div>
-                <div class="pill" style="border-color:${color};">${depTime ? `Dep≈ ${fmtTime(depTime)} ${TZ_LABEL}` : "Dep: n/a"}</div>
-              </div>
-            `;
-
-            L.circleMarker([p.lat, p.lon], {
-              radius: 4,
-              weight: 1,
-              color: "rgba(0,0,0,0.25)",
-              fillColor: color,
-              fillOpacity: 0.95
-            }).bindTooltip(tip, { sticky: true }).addTo(pointsLayer);
-          }
+    function fitBoundsForRoutes(routes) {
+      const bounds = [];
+      for (const route of routes) {
+        if (route.points.length) bounds.push(L.latLngBounds(route.points.map(p => [p.lat, p.lon])));
+      }
+      if (!bounds.length) {
+        // Nothing to frame (None selected, or no captured days yet) — fall back to
+        // the terminal geofence so "Fit" still does something sensible.
+        if (DATA && DATA.meta) {
+          map.fitBounds(
+            [[DATA.meta.lat_min, DATA.meta.lon_min], [DATA.meta.lat_max, DATA.meta.lon_max]],
+            fitPadding()
+          );
         }
+        return;
       }
 
-      elStatus.textContent = `${selCount} Friday(s) selected. Dots=${showPts ? "on" : "off"} · Geofence=${elShowGeofence.checked ? "on" : "off"}`;
+      let combined = bounds[0];
+      for (let i = 1; i < bounds.length; i++) combined = combined.extend(bounds[i]);
+      map.fitBounds(combined.pad(0.16), fitPadding());
     }
 
     function fitToSelection() {
-      const bounds = [];
-      linesLayer.eachLayer(l => {
-        if (l.getBounds) bounds.push(l.getBounds());
-      });
-      if (bounds.length === 0) return;
+      fitBoundsForRoutes(getSelectedRoutes());
+    }
 
-      let b = bounds[0];
-      for (let i=1; i<bounds.length; i++) b = b.extend(bounds[i]);
-      map.fitBounds(b.pad(0.10));
+    function fitToRoute(key) {
+      const route = routeByKey.get(key);
+      if (!route) return;
+      fitBoundsForRoutes([route]);
     }
 
     function buildList() {
       elList.innerHTML = "";
-      for (const day of DATA.days) {
-        const key = day.friday_pt;
-        const depOnly = filterToDepartureWindow(day.points);
-        const depTime = detectDeparture(depOnly);
-        const depLabel = depTime ? `${fmtTime(depTime)} ${TZ_LABEL}` : "n/a";
+      for (const route of routeSummaries) {
+        const vesselClass = route.vessel === "COLUMBIA" ? "vessel-primary" : "vessel-relief";
+        const card = document.createElement("div");
 
-        const d = document.createElement("div");
-        d.className = "day";
-        d.innerHTML = `
-          <div>
-            <div class="d">${fmtDateKey(key)}</div>
-            <div class="t">Dep≈ ${depLabel}</div>
-          </div>
-          <label class="toggle" style="margin-left:auto;">
-            <input type="checkbox" ${selected.has(key) ? "checked" : ""} data-key="${key}" />
-          </label>
-        `;
+        if (route.captured) {
+          card.className = [
+            "route-card",
+            selected.has(route.key) ? "is-selected" : "",
+            activeKey === route.key ? "is-active" : ""
+          ].filter(Boolean).join(" ");
+          card.tabIndex = 0;
+          card.style.setProperty("--active-color", route.color);
+          card.setAttribute("role", "button");
+          card.setAttribute("aria-label", `Inspect ${route.vessel} sailing on ${route.dateLabel}`);
 
-        d.addEventListener("click", (e) => {
-          const isInput = e.target && e.target.tagName === "INPUT";
-          if (!isInput) {
-            const cb = d.querySelector("input[type=checkbox]");
-            cb.checked = !cb.checked;
-            cb.dispatchEvent(new Event("change"));
-          }
-        });
+          card.innerHTML = `
+            <input type="checkbox" ${selected.has(route.key) ? "checked" : ""} aria-label="Show ${route.vessel} route for ${route.dateLabel}" />
+            <div class="route-main">
+              <div class="route-date">${route.dateLabel}</div>
+              <div class="route-meta">
+                <span class="chip vessel ${vesselClass}">${route.vessel}</span>
+                <span class="chip" style="border-color:${route.color};">Dep. ${fmtTime(route.departureTime).slice(0, 5)}</span>
+                <span class="chip">${fmtDelta(route.departureMinutes)}</span>
+              </div>
+            </div>
+            <button class="route-focus" type="button" aria-label="Zoom map to the ${route.dateLabel} route">Zoom</button>
+          `;
 
-        const cb = d.querySelector("input[type=checkbox]");
-        cb.addEventListener("change", () => {
-          const k = cb.getAttribute("data-key");
-          if (cb.checked) selected.add(k);
-          else selected.delete(k);
-          render();
-        });
+          const checkbox = card.querySelector("input");
+          const focusButton = card.querySelector("button");
 
-        elList.appendChild(d);
+          checkbox.addEventListener("click", event => event.stopPropagation());
+          checkbox.addEventListener("change", () => {
+            if (checkbox.checked) selected.add(route.key);
+            else selected.delete(route.key);
+            if (checkbox.checked) activeKey = route.key;
+            chooseActiveRoute();
+            render();
+            buildList();
+          });
+
+          focusButton.addEventListener("click", event => {
+            event.stopPropagation();
+            setActiveRoute(route.key, true);
+          });
+
+          card.addEventListener("click", () => setActiveRoute(route.key));
+          card.addEventListener("keydown", event => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              setActiveRoute(route.key);
+            }
+          });
+        } else {
+          const pending = route.status === "pending";
+          const label = pending ? "Sailed · awaiting NOAA" : "Upcoming";
+          const chipClass = pending ? "is-pending" : "is-scheduled";
+          card.className = "route-card is-empty";
+          card.setAttribute("aria-disabled", "true");
+          card.title = pending
+            ? `${route.vessel} sailed ${route.dateLabel}; track backfills from NOAA's 2026 archive`
+            : `${route.vessel} scheduled for ${route.dateLabel}; lights up once its track is captured`;
+          card.innerHTML = `
+            <span class="route-dot ${vesselClass}" aria-hidden="true"></span>
+            <div class="route-main">
+              <div class="route-date">${route.dateLabel}</div>
+              <div class="route-meta">
+                <span class="chip vessel ${vesselClass}">${route.vessel}</span>
+                <span class="chip ${chipClass}">${label}</span>
+              </div>
+            </div>
+          `;
+        }
+
+        elList.appendChild(card);
       }
     }
 
     async function init() {
       try {
         configureMobileUI();
+        DATA = await loadData();
 
-        const resp = await fetch(JSON_PATH, { cache: "no-store" });
-        if (!resp.ok) throw new Error(`fetch failed: ${resp.status}`);
-        DATA = await resp.json();
+        routeSummaries = buildRouteSummaries(DATA.days);
+        routeByKey = new Map(routeSummaries.map(route => [route.key, route]));
 
-        // default selection: last 4 Fridays
-        const days = DATA.days.map(d => d.friday_pt);
-        const lastN = 4;
-        selected = new Set(days.slice(Math.max(0, days.length - lastN)));
+        const capturedRoutes = routeSummaries.filter(route => route.captured);
+        const recent = capturedRoutes.slice(Math.max(0, capturedRoutes.length - RECENT_COUNT));
+        selected = new Set(recent.map(route => route.key));
+        activeKey = recent.length ? recent[recent.length - 1].key : null;
 
         if (DATA.meta) drawGeofence(DATA.meta);
-
         buildList();
         render();
         fitToSelection();
       } catch (err) {
-        elStatus.textContent = "Failed to load JSON. Check path + GitHub Pages.";
+        elStatus.textContent = "Data load failed";
+        elRouteDetail.innerHTML = `<div class="empty">Could not load the AIS JSON. Check the file path and static server.</div>`;
         console.error(err);
       }
     }
 
-    // UI wiring
-    elShowGeofence.addEventListener("change", () => { updateGeofenceVisibility(); });
-    elShowPoints.addEventListener("change", () => { render(); });
+    openFab.addEventListener("click", () => setDrawer(true));
+    closeDrawerBtn.addEventListener("click", () => setDrawer(false));
+    fit2Btn.addEventListener("click", () => fitToSelection());
+    window.addEventListener("resize", configureMobileUI);
 
-    btnAll.addEventListener("click", () => {
-      selected = new Set(DATA.days.map(d => d.friday_pt));
-      buildList();
+    elShowGeofence.addEventListener("change", updateGeofenceVisibility);
+    elShowPoints.addEventListener("change", () => render());
+    elFocusOnly.addEventListener("change", () => {
       render();
+      fitToSelection();
     });
+    elShowLabels.addEventListener("change", () => render());
 
-    btnNone.addEventListener("click", () => {
-      selected = new Set();
-      buildList();
-      render();
+    btnRecent.addEventListener("click", () => {
+      const capturedRoutes = routeSummaries.filter(route => route.captured);
+      const recent = capturedRoutes.slice(Math.max(0, capturedRoutes.length - RECENT_COUNT));
+      selectKeys(recent.map(route => route.key));
     });
-
+    btnAll.addEventListener("click", () => selectKeys(routeSummaries.filter(route => route.captured).map(route => route.key)));
+    btnNone.addEventListener("click", () => selectKeys([]));
     btnFit.addEventListener("click", () => fitToSelection());
+    btnEarliest.addEventListener("click", () => {
+      const route = findRouteByTiming("earliest");
+      if (route) setActiveRoute(route.key, true);
+    });
+    btnLatest.addEventListener("click", () => {
+      const route = findRouteByTiming("latest");
+      if (route) setActiveRoute(route.key, true);
+    });
 
     init();
   </script>
