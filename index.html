@@ -160,7 +160,7 @@
 
     .legend { margin-top: 15px; }
     .legend-bar { height: 13px; border-radius: 999px; border: 1px solid var(--line);
-      background: linear-gradient(90deg, var(--teal) 0%, var(--green) 25%, var(--sun) 50%, var(--coral) 75%, #ff5e6c 100%); }
+      background: linear-gradient(90deg, var(--teal) 0%, var(--green) 30%, var(--sun) 56%, var(--coral) 78%, #e43442 100%); }
     .legend-row { display: flex; justify-content: space-between; margin-top: 6px; font-size: 11px; color: var(--paper-faint); font-weight: 700; }
 
     .sailings { display: grid; gap: 9px; }
@@ -244,8 +244,8 @@
         <div class="section-h"><h2>Spotlight</h2><span class="h-aside" id="spotAside">tap a sailing</span></div>
         <div id="spot"></div>
         <div class="legend">
-          <div class="legend-bar" role="img" aria-label="Departure-time scale: teal at 4 PM through sunshine to coral at 10 PM."></div>
-          <div class="legend-row"><span>4 PM</span><span>departure time</span><span>10 PM</span></div>
+          <div class="legend-bar" role="img" aria-label="Lateness scale: teal when on time, through amber, to red when an hour or more late."></div>
+          <div class="legend-row"><span>on time</span><span>lateness</span><span>1 hr+ late</span></div>
         </div>
       </div>
 
@@ -297,10 +297,13 @@
     function fmtDelta(min) { if (min == null || Number.isNaN(min)) return "no departure"; const d = Math.round(min - SIX_PM); if (Math.abs(d) < 1) return "on 6 PM"; return `${Math.abs(d)} min ${d < 0 ? "early" : "late"}`; }
     function clamp01(x) { return Math.max(0, Math.min(1, x)); }
 
-    function departureColor(min) {
+    function latenessColor(min) {
       if (min == null) return "#9bb0ac";
-      const t = clamp01((min - 16 * 60) / (22 * 60 - 16 * 60));
-      const stops = [[0,[18,179,148]],[.25,[138,210,79]],[.5,[255,194,75]],[.75,[255,122,92]],[1,[255,94,108]]];
+      // Colour by LATENESS vs the 6 PM schedule, not absolute clock time. Ramps to
+      // red by ~75 min late and clamps there, so an aberrantly-late sailing reads red
+      // even when it's well short of the latest departure on record.
+      const t = clamp01((min - SIX_PM) / 75);
+      const stops = [[0,[18,179,148]],[.3,[138,210,79]],[.56,[255,194,75]],[.78,[255,122,92]],[1,[228,52,66]]];
       let a = stops[0], b = stops[stops.length - 1];
       for (let i = 0; i < stops.length - 1; i++) if (t >= stops[i][0] && t <= stops[i + 1][0]) { a = stops[i]; b = stops[i + 1]; break; }
       const u = (t - a[0]) / (b[0] - a[0] || 1);
@@ -327,7 +330,7 @@
             captured: status === "captured" && pts.length >= 2,
             dateLabel: fmtDate(day.friday_pt), weekLabel: fmtWeek(day.friday_pt),
             points: pts, departurePoint: depP, departureTime: depP ? depP.d : null, departureMinutes: depMin,
-            color: departureColor(depMin), first, last,
+            color: latenessColor(depMin), first, last,
             distanceNm: pts.length > 1 ? trackNm(pts) : 0,
             maxSog: pts.reduce((mx, p) => Math.max(mx, +p.sog || 0), 0),
             durationMin: first && last ? (last.d - first.d) / 60000 : null
@@ -378,6 +381,16 @@
         .addTo(routeLayer);
       line.on("click", () => setActive(r.key, false));
       if (active) {
+        // Dotted progress — one bead per AIS ping (downsampled), each tooltips its
+        // time, speed and position so you can trace where the boat was, when.
+        const step = Math.max(1, Math.ceil(r.points.length / 50));
+        for (let i = 0; i < r.points.length; i += step) {
+          const p = r.points[i];
+          const [pt, pa] = fmtClock(p.d);
+          L.circleMarker([p.lat, p.lon], { radius: 3.4, weight: 1.4, color: "#fff", fillColor: r.color, fillOpacity: 1, opacity: 0.95 })
+            .bindTooltip(`<div class="tip-t">${pt} ${pa}</div><div class="tip-d">${(+p.sog).toFixed(1)} kn · ${p.lat.toFixed(3)}, ${p.lon.toFixed(3)}</div>`, { direction: "top", offset: [0, -3], className: "chart-tip" })
+            .addTo(markLayer);
+        }
         if (r.first) L.marker([r.first.lat, r.first.lon], { icon: endIcon(), interactive: false }).addTo(markLayer);
         if (r.last) L.marker([r.last.lat, r.last.lon], { icon: endIcon(), interactive: false }).addTo(markLayer);
         if (r.departurePoint) {
