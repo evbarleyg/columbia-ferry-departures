@@ -12,5 +12,4 @@ data/
 .venv/
 .claude/
 aisstream_key.txt
-columbia_tracks_summer_fridays_2025.json
 *.md
