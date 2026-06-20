@@ -1,0 +1,16 @@
+# Vercel hosts ONLY the static site (index.html, tracker.html + vercel.json).
+# Everything below runs in the GitHub Action or locally — excluding it stops
+# Vercel from mis-detecting a Python app ("No python entrypoint found").
+*.py
+requirements.txt
+pyproject.toml
+tests/
+.github/
+docs/
+captures/
+data/
+.venv/
+.claude/
+aisstream_key.txt
+columbia_tracks_summer_fridays_2025.json
+*.md

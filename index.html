@@ -1096,11 +1096,12 @@
     }
 
     function detectDeparture(points) {
-      // The northbound departure is the LAST sustained fast run of the day, so an
-      // earlier arrival approach (on days the vessel arrives then departs — e.g.
-      // 2026-06-19, arr 4:45p + dep 9:45p) can't be mislabeled as the departure.
+      // Departure = the LAST sustained fast run of the day (the arrival approach is
+      // excluded by the >=14:00 window in filterToDepartureWindow). sustainN=2 because
+      // the cloud poll samples at ~5-min, so a departure may only land 2 fast points
+      // inside the box before the vessel clears it (2026-06-19: 9:58p 10.3kn, 10:03p 16.2kn).
       const fastMin = 8.0;
-      const sustainN = 3;
+      const sustainN = 2;
       let run = 0;
       let departure = null;
       for (let i = 0; i < points.length; i++) {
